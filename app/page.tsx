@@ -320,8 +320,15 @@ export default function Home() {
     (item) => item.usage === "Sällan" && item.price >= 150
   );
 
+  const priceWarnings = subscriptions.filter(
+    (item) => getPriceSanity(item) !== null
+  );
+
   const thingsToCheck =
-    rarelyUsed.length + overlapInsights.length + strongWarnings.length;
+    rarelyUsed.length +
+    overlapInsights.length +
+    strongWarnings.length +
+    priceWarnings.length;
 
   const bestNextAction = getBestNextAction(subscriptions);
 
@@ -564,6 +571,7 @@ export default function Home() {
                 rarelyUsed={rarelyUsed}
                 overlapInsights={overlapInsights}
                 strongWarnings={strongWarnings}
+                priceWarnings={priceWarnings}
                 bestNextAction={bestNextAction}
               />
 
@@ -800,6 +808,98 @@ function hasName(subscription: Subscription, words: string[]) {
   return words.some((word) => normalizedName.includes(word));
 }
 
+type PriceSanityLevel = "unusual" | "extreme";
+
+type PriceSanity = {
+  level: PriceSanityLevel;
+  unusualLimit: number;
+  extremeLimit: number;
+  categoryLabel: string;
+};
+
+function getPriceLimitsForCategory(category: string) {
+  if (category === "Streaming") {
+    return { unusual: 500, extreme: 1000, categoryLabel: "streaming" };
+  }
+
+  if (category === "Molnlagring") {
+    return { unusual: 500, extreme: 1000, categoryLabel: "molnlagring" };
+  }
+
+  if (category === "Gym") {
+    return { unusual: 1000, extreme: 2000, categoryLabel: "gym" };
+  }
+
+  if (category === "Mobil") {
+    return { unusual: 800, extreme: 1500, categoryLabel: "mobil" };
+  }
+
+  if (category === "Bankkort") {
+    return { unusual: 500, extreme: 1000, categoryLabel: "bankkort" };
+  }
+
+  if (category === "Försäkring") {
+    return { unusual: 2000, extreme: 4000, categoryLabel: "försäkring" };
+  }
+
+  if (category === "Mat och leverans") {
+    return { unusual: 500, extreme: 1000, categoryLabel: "mat och leverans" };
+  }
+
+  if (category === "Medlemskap") {
+    return { unusual: 500, extreme: 1000, categoryLabel: "medlemskap" };
+  }
+
+  if (category === "Shopping") {
+    return { unusual: 1000, extreme: 2000, categoryLabel: "shopping" };
+  }
+
+  return { unusual: 1000, extreme: 2000, categoryLabel: "den här kategorin" };
+}
+
+function getPriceSanity(subscription: Subscription): PriceSanity | null {
+  const limits = getPriceLimitsForCategory(subscription.category);
+
+  if (subscription.price >= limits.extreme) {
+    return {
+      level: "extreme",
+      unusualLimit: limits.unusual,
+      extremeLimit: limits.extreme,
+      categoryLabel: limits.categoryLabel,
+    };
+  }
+
+  if (subscription.price >= limits.unusual) {
+    return {
+      level: "unusual",
+      unusualLimit: limits.unusual,
+      extremeLimit: limits.extreme,
+      categoryLabel: limits.categoryLabel,
+    };
+  }
+
+  return null;
+}
+
+function getHighestPriceWarning(subscriptions: Subscription[]) {
+  return [...subscriptions]
+    .filter((item) => getPriceSanity(item) !== null)
+    .sort((a, b) => {
+      const aSanity = getPriceSanity(a);
+      const bSanity = getPriceSanity(b);
+
+      if (aSanity?.level === "extreme" && bSanity?.level !== "extreme") {
+        return -1;
+      }
+
+      if (bSanity?.level === "extreme" && aSanity?.level !== "extreme") {
+        return 1;
+      }
+
+      return b.price - a.price;
+    })[0];
+}
+
 function getOverlapInsights(subscriptions: Subscription[]): Insight[] {
   const insights: Insight[] = [];
 
@@ -886,6 +986,23 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
       title: "Lägg till dina första abonnemang",
       text: "Börja med 3–5 tjänster, till exempel streaming, mobil, gym eller bankkort.",
     };
+  }
+
+  const priceWarning = getHighestPriceWarning(subscriptions);
+
+  if (priceWarning) {
+    const sanity = getPriceSanity(priceWarning);
+
+    if (sanity) {
+      return {
+        title: `Kontrollera priset på ${priceWarning.name}`,
+        text: `${priceWarning.name} kostar ${formatCurrency(
+          priceWarning.price
+        )}/mån, vilket verkar ${
+          sanity.level === "extreme" ? "extremt högt" : "ovanligt högt"
+        } för ${sanity.categoryLabel}. Kontrollera om priset är rätt inskrivet eller om det gäller per år.`,
+      };
+    }
   }
 
   const rarelyUsedExpensive = subscriptions
@@ -998,6 +1115,28 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
 }
 
 function getValueAssessment(subscription: Subscription) {
+  const priceSanity = getPriceSanity(subscription);
+
+  if (priceSanity?.level === "extreme") {
+    return {
+      label: "Extremt hög kostnad",
+      description: `${formatCurrency(
+        subscription.price
+      )}/mån verkar extremt högt för ${priceSanity.categoryLabel}.`,
+      className: "border-red-200 bg-red-50 text-red-800",
+    };
+  }
+
+  if (priceSanity?.level === "unusual") {
+    return {
+      label: "Ovanligt hög kostnad",
+      description: `${formatCurrency(
+        subscription.price
+      )}/mån verkar högt för ${priceSanity.categoryLabel}.`,
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+    };
+  }
+
   if (subscription.usage === "Sällan" && subscription.price >= 150) {
     return {
       label: "Dyrt för låg användning",
@@ -1048,6 +1187,12 @@ function getValueAssessment(subscription: Subscription) {
 }
 
 function getRecommendedAction(subscription: Subscription) {
+  const priceSanity = getPriceSanity(subscription);
+
+  if (priceSanity) {
+    return "Kontrollera om priset är rätt inskrivet eller om det gäller per år.";
+  }
+
   if (subscription.usage === "Sällan" && subscription.price >= 150) {
     return "Pausa eller säg upp om du inte behöver den.";
   }
@@ -1080,6 +1225,14 @@ function getRecommendedAction(subscription: Subscription) {
 }
 
 function getRecommendationReason(subscription: Subscription) {
+  const priceSanity = getPriceSanity(subscription);
+
+  if (priceSanity) {
+    return `${formatCurrency(subscription.price)}/mån verkar ${
+      priceSanity.level === "extreme" ? "extremt högt" : "ovanligt högt"
+    } för ${priceSanity.categoryLabel}.`;
+  }
+
   if (subscription.usage === "Sällan" && subscription.price >= 150) {
     return `${formatCurrency(subscription.price)}/mån och används sällan.`;
   }
@@ -1096,6 +1249,10 @@ function getRecommendationReason(subscription: Subscription) {
 }
 
 function shouldShowRecommendationReason(subscription: Subscription) {
+  if (getPriceSanity(subscription)) {
+    return true;
+  }
+
   if (subscription.usage === "Sällan") {
     return true;
   }
@@ -1540,6 +1697,7 @@ function DetectiveReport({
   rarelyUsed,
   overlapInsights,
   strongWarnings,
+  priceWarnings,
   bestNextAction,
 }: {
   subscriptions: Subscription[];
@@ -1547,6 +1705,7 @@ function DetectiveReport({
   rarelyUsed: Subscription[];
   overlapInsights: Insight[];
   strongWarnings: Subscription[];
+  priceWarnings: Subscription[];
   bestNextAction: Insight | null;
 }) {
   if (subscriptions.length === 0) {
@@ -1624,6 +1783,13 @@ function DetectiveReport({
             <ReportLine
               icon="🔥"
               text={`${strongWarnings.length} dyr tjänst används sällan`}
+            />
+          )}
+
+          {priceWarnings.length > 0 && (
+            <ReportLine
+              icon="🧾"
+              text={`${priceWarnings.length} pris bör kontrolleras`}
             />
           )}
 
