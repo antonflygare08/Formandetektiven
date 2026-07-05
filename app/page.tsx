@@ -25,6 +25,26 @@ type KnownService = {
   note: string;
 };
 
+type LanguageCode = "sv" | "en" | "de";
+type CurrencyCode = "SEK" | "EUR" | "USD" | "GBP" | "DKK" | "NOK";
+
+type AppSettings = {
+  language: LanguageCode;
+  currency: CurrencyCode;
+};
+
+const currencyLocales: Record<CurrencyCode, string> = {
+  SEK: "sv-SE",
+  EUR: "de-DE",
+  USD: "en-US",
+  GBP: "en-GB",
+  DKK: "da-DK",
+  NOK: "nb-NO",
+};
+
+let activeCurrency: CurrencyCode = "SEK";
+let activeLocale = "sv-SE";
+
 const inputClassName =
   "w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-emerald-600";
 
@@ -170,6 +190,160 @@ const knownServices: KnownService[] = [
     note: "Wolt känns igen. Kontrollera om medlemskapet lönar sig jämfört med hur ofta du beställer.",
   },
   {
+    displayName: "SkyShowtime",
+    matchNames: ["skyshowtime", "sky showtime"],
+    category: "Streaming",
+    plans: ["Standard", "Premium"],
+    note: "SkyShowtime känns igen. Kontrollera om du använder tjänsten varje månad eller bara ibland.",
+  },
+  {
+    displayName: "Apple TV+",
+    matchNames: ["apple tv", "apple tv+"],
+    category: "Streaming",
+    plans: ["Standard", "Apple One"],
+    note: "Apple TV+ känns igen. Kontrollera om tjänsten ingår i Apple One eller betalas separat.",
+  },
+  {
+    displayName: "Discovery+",
+    matchNames: ["discovery", "discovery+"],
+    category: "Streaming",
+    plans: ["Underhållning", "Sport", "Total"],
+    note: "Discovery+ känns igen. Sportpaket kan vara dyrare, så kontrollera om du använder det.",
+  },
+  {
+    displayName: "Storytel",
+    matchNames: ["storytel"],
+    category: "Medlemskap",
+    plans: ["Unlimited", "Family", "Student"],
+    note: "Storytel känns igen. Kontrollera om du använder ljudböcker tillräckligt ofta.",
+  },
+  {
+    displayName: "BookBeat",
+    matchNames: ["bookbeat"],
+    category: "Medlemskap",
+    plans: ["Basic", "Standard", "Premium", "Family"],
+    note: "BookBeat känns igen. Kontrollera lyssningstid och om billigare nivå räcker.",
+  },
+  {
+    displayName: "Nextory",
+    matchNames: ["nextory"],
+    category: "Medlemskap",
+    plans: ["Basic", "Unlimited", "Family"],
+    note: "Nextory känns igen. Kontrollera om du använder tjänsten tillräckligt ofta.",
+  },
+  {
+    displayName: "Readly",
+    matchNames: ["readly"],
+    category: "Medlemskap",
+    plans: ["Standard", "Family"],
+    note: "Readly känns igen. Kontrollera om du läser tillräckligt ofta för att medlemskapet ska löna sig.",
+  },
+  {
+    displayName: "Duolingo",
+    matchNames: ["duolingo"],
+    category: "Medlemskap",
+    plans: ["Super", "Family"],
+    note: "Duolingo känns igen. Kontrollera om gratisversionen räcker eller om du använder premiumfunktionerna.",
+  },
+  {
+    displayName: "Adobe",
+    matchNames: ["adobe", "creative cloud", "photoshop", "lightroom"],
+    category: "Medlemskap",
+    plans: ["Photography", "Single app", "Creative Cloud All Apps", "Student"],
+    note: "Adobe känns igen. Adobe-abonnemang kan vara dyra, så kontrollera om rätt plan används.",
+  },
+  {
+    displayName: "Canva",
+    matchNames: ["canva"],
+    category: "Medlemskap",
+    plans: ["Pro", "Teams", "Education"],
+    note: "Canva känns igen. Kontrollera om Pro-funktionerna används tillräckligt ofta.",
+  },
+  {
+    displayName: "Xbox Game Pass",
+    matchNames: ["xbox game pass", "game pass"],
+    category: "Medlemskap",
+    plans: ["Core", "Standard", "Ultimate", "PC"],
+    note: "Xbox Game Pass känns igen. Kontrollera om du spelar tillräckligt ofta och om rätt nivå behövs.",
+  },
+  {
+    displayName: "PlayStation Plus",
+    matchNames: ["playstation plus", "ps plus", "ps+"],
+    category: "Medlemskap",
+    plans: ["Essential", "Extra", "Premium"],
+    note: "PlayStation Plus känns igen. Kontrollera om du använder spelen och onlineförmånerna.",
+  },
+  {
+    displayName: "Nintendo Switch Online",
+    matchNames: ["nintendo switch online", "nintendo online"],
+    category: "Medlemskap",
+    plans: ["Individual", "Family", "Expansion Pack"],
+    note: "Nintendo Switch Online känns igen. Kontrollera om familjeplan eller vanlig plan passar bäst.",
+  },
+  {
+    displayName: "Friskis & Svettis",
+    matchNames: ["friskis", "friskis & svettis", "friskis och svettis"],
+    category: "Gym",
+    plans: ["Gym", "Träning", "Allkort", "Student"],
+    note: "Friskis & Svettis känns igen. Kontrollera om du använder gym, pass eller båda.",
+  },
+  {
+    displayName: "Actic",
+    matchNames: ["actic"],
+    category: "Gym",
+    plans: ["Basic", "Premium", "Student"],
+    note: "Actic känns igen. Kontrollera om du använder medlemskapet tillräckligt ofta.",
+  },
+  {
+    displayName: "Fello",
+    matchNames: ["fello"],
+    category: "Mobil",
+    plans: ["Liten surf", "Mellan surf", "Stor surf"],
+    note: "Fello känns igen. Kontrollera om surfmängden matchar din användning.",
+  },
+  {
+    displayName: "IKEA Family",
+    matchNames: ["ikea family", "ikea"],
+    category: "Medlemskap",
+    plans: ["Gratis medlemskap"],
+    note: "IKEA Family känns igen. Lägg in kostnaden som 0 kr om medlemskapet är gratis, men notera förmånerna.",
+  },
+  {
+    displayName: "Stadium",
+    matchNames: ["stadium", "stadium member"],
+    category: "Shopping",
+    plans: ["Member", "Premium"],
+    note: "Stadium känns igen. Kontrollera om rabatter eller bonusar används.",
+  },
+  {
+    displayName: "H&M",
+    matchNames: ["h&m", "hm", "hennes"],
+    category: "Shopping",
+    plans: ["Member", "Plus"],
+    note: "H&M känns igen. Lägg in kostnaden som 0 kr om medlemskapet är gratis, men notera förmånerna.",
+  },
+  {
+    displayName: "ICA",
+    matchNames: ["ica", "ica stammis", "ica kort"],
+    category: "Medlemskap",
+    plans: ["Stammis", "Bankkort"],
+    note: "ICA känns igen. Kontrollera bonus, rabatter och om kort/förmåner används.",
+  },
+  {
+    displayName: "Coop",
+    matchNames: ["coop"],
+    category: "Medlemskap",
+    plans: ["Medlem", "Mer"],
+    note: "Coop känns igen. Kontrollera bonus, rabatter och medlemsförmåner.",
+  },
+  {
+    displayName: "Willys Plus",
+    matchNames: ["willys", "willys plus"],
+    category: "Medlemskap",
+    plans: ["Plus"],
+    note: "Willys Plus känns igen. Lägg in kostnaden som 0 kr om medlemskapet är gratis, men notera förmånerna.",
+  },
+  {
     displayName: "Mobilabonnemang",
     matchNames: [
       "telia",
@@ -255,11 +429,49 @@ const initialSubscriptions: Subscription[] = [
 ];
 
 function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("sv-SE", {
+  return new Intl.NumberFormat(activeLocale, {
     style: "currency",
-    currency: "SEK",
+    currency: activeCurrency,
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function getBrowserDefaultSettings(): AppSettings {
+  if (typeof navigator === "undefined") {
+    return { language: "sv", currency: "SEK" };
+  }
+
+  const browserLanguage = navigator.language.toLowerCase();
+
+  if (browserLanguage.startsWith("de")) {
+    return { language: "de", currency: "EUR" };
+  }
+
+  if (browserLanguage === "en-us") {
+    return { language: "en", currency: "USD" };
+  }
+
+  if (browserLanguage === "en-gb") {
+    return { language: "en", currency: "GBP" };
+  }
+
+  if (browserLanguage.startsWith("da")) {
+    return { language: "en", currency: "DKK" };
+  }
+
+  if (browserLanguage.startsWith("nb") || browserLanguage.startsWith("no")) {
+    return { language: "en", currency: "NOK" };
+  }
+
+  if (browserLanguage.startsWith("sv")) {
+    return { language: "sv", currency: "SEK" };
+  }
+
+  return { language: "en", currency: "EUR" };
+}
+
+function formatCheckCount(count: number) {
+  return `${count} ${count === 1 ? "sak" : "saker"} att kontrollera`;
 }
 
 export default function Home() {
@@ -270,20 +482,29 @@ export default function Home() {
   const [showForm, setShowForm] = useState(false);
   const [hasSkippedGuide, setHasSkippedGuide] = useState(false);
   const [showPremiumDetails, setShowPremiumDetails] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [currency, setCurrency] = useState<CurrencyCode>("SEK");
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Streaming");
   const [price, setPrice] = useState("");
   const [usage, setUsage] = useState("Ofta");
   const [plan, setPlan] = useState("");
+  const [showServiceSuggestions, setShowServiceSuggestions] = useState(false);
 
   const [editingId, setEditingId] = useState<number | null>(null);
 
   const recognizedService = findKnownService(name);
+  const suggestedServices = getSuggestedServices(name);
+
+  activeCurrency = currency;
+  activeLocale = currencyLocales[currency];
 
   useEffect(() => {
     const savedSubscriptions = localStorage.getItem("subscriptions");
     const savedGuideChoice = localStorage.getItem("hasSkippedGuide");
+    const savedSettings = localStorage.getItem("appSettings");
+    const browserDefaults = getBrowserDefaultSettings();
 
     if (savedSubscriptions) {
       setSubscriptions(JSON.parse(savedSubscriptions));
@@ -291,6 +512,13 @@ export default function Home() {
 
     if (savedGuideChoice === "true") {
       setHasSkippedGuide(true);
+    }
+
+    if (savedSettings) {
+      const parsedSettings = JSON.parse(savedSettings) as AppSettings;
+      setCurrency(parsedSettings.currency ?? browserDefaults.currency);
+    } else {
+      setCurrency(browserDefaults.currency);
     }
 
     setHasLoaded(true);
@@ -301,6 +529,15 @@ export default function Home() {
       localStorage.setItem("subscriptions", JSON.stringify(subscriptions));
     }
   }, [subscriptions, hasLoaded]);
+
+  useEffect(() => {
+    if (hasLoaded) {
+      localStorage.setItem(
+        "appSettings",
+        JSON.stringify({ language: "sv", currency })
+      );
+    }
+  }, [currency, hasLoaded]);
 
   const monthlyCost = subscriptions.reduce((sum, item) => sum + item.price, 0);
   const yearlyCost = monthlyCost * 12;
@@ -349,6 +586,13 @@ export default function Home() {
     if (service) {
       setCategory(service.category);
     }
+  }
+
+  function handleChooseSuggestedService(service: KnownService) {
+    setName(service.displayName);
+    setCategory(service.category);
+    setPlan("");
+    setShowServiceSuggestions(false);
   }
 
   function handleAddOrUpdateSubscription(
@@ -476,10 +720,10 @@ export default function Home() {
 
               <div>
                 <p className="text-lg font-extrabold tracking-tight text-emerald-950">
-                  Förmånsdetektiven
+                  Benefitly
                 </p>
                 <p className="text-xs font-medium text-slate-500">
-                  Din abonnemangsrapport
+                  Koll på abonnemang och förmåner
                 </p>
               </div>
             </div>
@@ -495,6 +739,13 @@ export default function Home() {
               )}
 
               <button
+                onClick={() => setShowSettings(true)}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-100"
+              >
+                ⚙️ Inställningar
+              </button>
+
+              <button
                 onClick={handleStartFromScratch}
                 className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm hover:bg-slate-100"
               >
@@ -503,7 +754,7 @@ export default function Home() {
 
               <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 shadow-sm">
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-900 text-xs text-white">
-                  A
+                  ✓
                 </span>
                 Gratisversion
               </div>
@@ -517,15 +768,17 @@ export default function Home() {
               </p>
 
               <h1 className="max-w-3xl text-4xl font-black tracking-tight text-slate-950 xl:text-5xl 2xl:text-6xl">
-                Din abonnemangsrapport
+                Din Benefitly-rapport
               </h1>
 
               <p className="mt-5 max-w-2xl text-lg text-slate-600">
+                Lägg in dina abonnemang och få en snabb rapport över kostnader,
+                sällan använda tjänster, överlapp och vad du bör kontrollera först.
                 Rapporten visar{" "}
                 <span className="font-bold text-slate-950">
-                  {thingsToCheck}
+                  {formatCheckCount(thingsToCheck)}
                 </span>{" "}
-                saker att kontrollera och en besparing att kolla på{" "}
+                och en besparing att kolla på{" "}
                 <span className="font-extrabold text-emerald-700">
                   {formatCurrency(possibleMonthlySavings)}/mån.
                 </span>
@@ -558,7 +811,7 @@ export default function Home() {
                   icon="⚠️"
                   title="Saker att kolla"
                   value={thingsToCheck.toString()}
-                  description="Saker att kontrollera"
+                  description="Prioriterade kontroller"
                   warning
                 />
               </section>
@@ -591,6 +844,13 @@ export default function Home() {
               Visa guide
             </button>
           )}
+
+          <button
+            onClick={() => setShowSettings(true)}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm"
+          >
+            ⚙️ Inställningar
+          </button>
 
           <button
             onClick={handleStartFromScratch}
@@ -649,12 +909,36 @@ export default function Home() {
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <FormField label="Namn">
-                  <input
-                    value={name}
-                    onChange={(event) => handleNameChange(event.target.value)}
-                    placeholder="Exempel: Netflix"
-                    className={inputClassName}
-                  />
+                  <div className="relative">
+                    <input
+                      value={name}
+                      onChange={(event) => {
+                        handleNameChange(event.target.value);
+                        setShowServiceSuggestions(true);
+                      }}
+                      onFocus={() => setShowServiceSuggestions(true)}
+                      onBlur={() => {
+                        window.setTimeout(
+                          () => setShowServiceSuggestions(false),
+                          150
+                        );
+                      }}
+                      placeholder="Välj en vanlig tjänst eller skriv själv"
+                      className={inputClassName}
+                    />
+
+                    {showServiceSuggestions && suggestedServices.length > 0 && (
+                      <ServiceSuggestionDropdown
+                        services={suggestedServices}
+                        onChoose={handleChooseSuggestedService}
+                      />
+                    )}
+                  </div>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Du behöver inte veta allt direkt. Välj en vanlig tjänst
+                    eller skriv själv och fyll på detaljer senare.
+                  </p>
                 </FormField>
 
                 <div>
@@ -775,6 +1059,14 @@ export default function Home() {
       {showPremiumDetails && (
         <PremiumDetailsModal onClose={() => setShowPremiumDetails(false)} />
       )}
+
+      {showSettings && (
+        <SettingsModal
+          currency={currency}
+          onCurrencyChange={setCurrency}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </main>
   );
 }
@@ -803,6 +1095,29 @@ function findKnownService(name: string) {
   );
 }
 
+function getSuggestedServices(searchText: string) {
+  const normalizedSearch = normalizeText(searchText);
+
+  if (!normalizedSearch) {
+    return knownServices.slice(0, 18);
+  }
+
+  return knownServices
+    .filter((service) => {
+      const displayName = normalizeText(service.displayName);
+      const category = normalizeText(service.category);
+
+      return (
+        displayName.includes(normalizedSearch) ||
+        category.includes(normalizedSearch) ||
+        service.matchNames.some((matchName) =>
+          normalizeText(matchName).includes(normalizedSearch)
+        )
+      );
+    })
+    .slice(0, 12);
+}
+
 function hasName(subscription: Subscription, words: string[]) {
   const normalizedName = normalizeText(subscription.name);
   return words.some((word) => normalizedName.includes(word));
@@ -817,44 +1132,74 @@ type PriceSanity = {
   categoryLabel: string;
 };
 
+function getCurrencyMultiplier() {
+  if (activeCurrency === "EUR") {
+    return 0.1;
+  }
+
+  if (activeCurrency === "USD") {
+    return 0.1;
+  }
+
+  if (activeCurrency === "GBP") {
+    return 0.08;
+  }
+
+  if (activeCurrency === "DKK") {
+    return 0.7;
+  }
+
+  return 1;
+}
+
 function getPriceLimitsForCategory(category: string) {
+  const multiplier = getCurrencyMultiplier();
+
+  function makeLimit(unusual: number, extreme: number, categoryLabel: string) {
+    return {
+      unusual: Math.round(unusual * multiplier),
+      extreme: Math.round(extreme * multiplier),
+      categoryLabel,
+    };
+  }
+
   if (category === "Streaming") {
-    return { unusual: 500, extreme: 1000, categoryLabel: "streaming" };
+    return makeLimit(500, 1000, "streaming");
   }
 
   if (category === "Molnlagring") {
-    return { unusual: 500, extreme: 1000, categoryLabel: "molnlagring" };
+    return makeLimit(500, 1000, "molnlagring");
   }
 
   if (category === "Gym") {
-    return { unusual: 1000, extreme: 2000, categoryLabel: "gym" };
+    return makeLimit(1000, 2000, "gym");
   }
 
   if (category === "Mobil") {
-    return { unusual: 800, extreme: 1500, categoryLabel: "mobil" };
+    return makeLimit(800, 1500, "mobil");
   }
 
   if (category === "Bankkort") {
-    return { unusual: 500, extreme: 1000, categoryLabel: "bankkort" };
+    return makeLimit(500, 1000, "bankkort");
   }
 
   if (category === "Försäkring") {
-    return { unusual: 2000, extreme: 4000, categoryLabel: "försäkring" };
+    return makeLimit(2000, 4000, "försäkring");
   }
 
   if (category === "Mat och leverans") {
-    return { unusual: 500, extreme: 1000, categoryLabel: "mat och leverans" };
+    return makeLimit(500, 1000, "mat och leverans");
   }
 
   if (category === "Medlemskap") {
-    return { unusual: 500, extreme: 1000, categoryLabel: "medlemskap" };
+    return makeLimit(500, 1000, "medlemskap");
   }
 
   if (category === "Shopping") {
-    return { unusual: 1000, extreme: 2000, categoryLabel: "shopping" };
+    return makeLimit(1000, 2000, "shopping");
   }
 
-  return { unusual: 1000, extreme: 2000, categoryLabel: "den här kategorin" };
+  return makeLimit(1000, 2000, "den här kategorin");
 }
 
 function getPriceSanity(subscription: Subscription): PriceSanity | null {
@@ -1000,7 +1345,7 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
           priceWarning.price
         )}/mån, vilket verkar ${
           sanity.level === "extreme" ? "extremt högt" : "ovanligt högt"
-        } för ${sanity.categoryLabel}. Kontrollera om priset är rätt inskrivet eller om det gäller per år.`,
+        } för ${sanity.categoryLabel}. Kontrollera om priset är rätt inskrivet, om det gäller per år eller om en billigare plan/ett billigare alternativ räcker.`,
       };
     }
   }
@@ -1190,7 +1535,7 @@ function getRecommendedAction(subscription: Subscription) {
   const priceSanity = getPriceSanity(subscription);
 
   if (priceSanity) {
-    return "Kontrollera om priset är rätt inskrivet eller om det gäller per år.";
+    return "Kontrollera priset, år/månad och om billigare plan eller alternativ räcker.";
   }
 
   if (subscription.usage === "Sällan" && subscription.price >= 150) {
@@ -1711,7 +2056,7 @@ function DetectiveReport({
   if (subscriptions.length === 0) {
     return (
       <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 shadow-sm">
-        <h2 className="text-xl font-black">Din första rapport</h2>
+        <h2 className="text-xl font-black">Din första Benefitly-rapport</h2>
         <p className="mt-2 text-sm text-slate-600">
           Lägg till några abonnemang för att få en snabb analys.
         </p>
@@ -1721,6 +2066,11 @@ function DetectiveReport({
 
   const firstOverlap = overlapInsights[0];
   const focusSubscription = getReportFocusSubscription(subscriptions);
+  const reportCheckCount =
+    rarelyUsed.length +
+    overlapInsights.length +
+    strongWarnings.length +
+    priceWarnings.length;
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -1734,7 +2084,7 @@ function DetectiveReport({
             Detektivrapport
           </p>
           <h2 className="text-2xl font-black">
-            {rarelyUsed.length + overlapInsights.length} saker att kontrollera
+            {formatCheckCount(reportCheckCount)}
           </h2>
         </div>
       </div>
@@ -1801,6 +2151,12 @@ function DetectiveReport({
 }
 
 function getReportFocusSubscription(subscriptions: Subscription[]) {
+  const priceWarning = getHighestPriceWarning(subscriptions);
+
+  if (priceWarning) {
+    return priceWarning;
+  }
+
   const rarelyUsedExpensive = subscriptions
     .filter((item) => item.usage === "Sällan" && item.price >= 150)
     .sort((a, b) => b.price - a.price);
@@ -1855,6 +2211,161 @@ function ReportLine({
   );
 }
 
+function SettingsModal({
+  currency,
+  onCurrencyChange,
+  onClose,
+}: {
+  currency: CurrencyCode;
+  onCurrencyChange: (currency: CurrencyCode) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 px-4">
+      <section className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-xl">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-black uppercase tracking-wide text-slate-600">
+              <span>⚙️</span>
+              Inställningar
+            </div>
+
+            <h2 className="mt-3 text-3xl font-black tracking-tight">
+              Anpassa Benefitly
+            </h2>
+
+            <p className="mt-3 max-w-xl text-sm text-slate-600">
+              Här kan du välja valuta och se framtida val för import och
+              datakopplingar. Språkstöd kommer senare när appens texter är mer färdiga.
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="rounded-full bg-slate-100 px-3 py-1 text-sm font-black text-slate-700 hover:bg-slate-200"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-4">
+          <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="text-lg font-black text-slate-950">Allmänt</h3>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="text-sm font-bold text-slate-600">Språk</p>
+                <div className="mt-1 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-700">
+                  Svenska
+                </div>
+                <p className="mt-1 text-xs font-semibold text-slate-500">
+                  Fler språk kommer senare när texterna är färdiga.
+                </p>
+              </div>
+
+              <FormField label="Valuta">
+                <select
+                  value={currency}
+                  onChange={(event) =>
+                    onCurrencyChange(event.target.value as CurrencyCode)
+                  }
+                  className={inputClassName}
+                >
+                  <option value="SEK">SEK - svenska kronor</option>
+                  <option value="EUR">EUR - euro</option>
+                  <option value="USD">USD - dollar</option>
+                  <option value="GBP">GBP - pund</option>
+                  <option value="DKK">DKK - danska kronor</option>
+                  <option value="NOK">NOK - norska kronor</option>
+                </select>
+              </FormField>
+            </div>
+
+            <p className="mt-3 text-xs font-semibold text-slate-500">
+              Valuta ändrar hur belopp visas och hur prisvarningar bedöms.
+              Appen räknar inte om gamla belopp mellan valutor ännu.
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+            <h3 className="text-lg font-black text-slate-950">Data, import och Premium</h3>
+            <p className="mt-2 text-sm font-medium text-slate-600">
+              Gratisversionen använder manuell inmatning. Import, mejlskanning,
+              bankkoppling, prisjämförelser och smartare analys hör till
+              kommande Premium.
+            </p>
+
+            <div className="mt-4 grid gap-3">
+              <SettingsStatusLine
+                title="Manuell inmatning"
+                text="Aktiv i gratisversionen."
+                status="Aktiv"
+              />
+              <SettingsStatusLine
+                title="Kvitton och filer"
+                text="Framtida Premium-val för att hitta kostnader, rabatter och förmåner."
+                status="Premium · frivilligt"
+              />
+              <SettingsStatusLine
+                title="Mejlskanning"
+                text="Framtida Premium-val för att hitta kvitton, fakturor och återkommande betalningar."
+                status="Premium · frivilligt"
+              />
+              <SettingsStatusLine
+                title="Bankkoppling"
+                text="Framtida Premium-val via säker bankkoppling/open banking. Aldrig ett krav."
+                status="Premium · frivilligt"
+              />
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5">
+            <h3 className="text-lg font-black text-emerald-950">Integritet</h3>
+            <p className="mt-2 text-sm font-medium text-emerald-900">
+              Gratisversionen använder bara det du själv skriver in och kopplar
+              inte bank eller mejl. I denna testversion sparas uppgifterna lokalt
+              i din webbläsare. Framtida bankkoppling ska ske säkert via godkänd
+              koppling/open banking, inte genom att du skriver banklösenord i appen.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={onClose}
+          className="mt-6 w-full rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"
+        >
+          Spara och stäng
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function SettingsStatusLine({
+  title,
+  text,
+  status,
+}: {
+  title: string;
+  text: string;
+  status: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-sm">
+      <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
+        <div>
+          <p className="font-black text-slate-950">{title}</p>
+          <p className="mt-1 text-sm text-slate-600">{text}</p>
+        </div>
+
+        <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+          {status}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function PremiumPreviewCard({
   onShowExamples,
 }: {
@@ -1873,25 +2384,25 @@ function PremiumPreviewCard({
           </p>
 
           <h3 className="mt-1 text-lg font-black text-slate-950">
-            Se vad Premium kan hitta
+            Hitta mer än abonnemang
           </h3>
 
           <p className="mt-2 text-sm text-slate-600">
-            Hitta fler besparingar med bank, mejl, rabatter och smartare
-            analys.
+            Premium kan i framtiden hitta rabatter, förmåner, överlapp,
+            billigare alternativ och smarta påminnelser. Bankkoppling är aldrig ett krav.
           </p>
 
           <div className="mt-3 flex flex-wrap gap-2">
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-              Bank & mejl
+              Import
             </span>
 
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-              Rabatter & förmåner
+              Rabatter nära dig
             </span>
 
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
-              Sparplan
+              Smart analys
             </span>
           </div>
 
@@ -1904,7 +2415,7 @@ function PremiumPreviewCard({
             </button>
 
             <p className="text-xs font-bold text-slate-500">
-              Ingen bank eller mejl kopplas i gratisversionen.
+              Du väljer själv vad du vill koppla.
             </p>
           </div>
         </div>
@@ -1930,8 +2441,8 @@ function PremiumDetailsModal({ onClose }: { onClose: () => void }) {
 
             <p className="mt-3 max-w-xl text-sm text-slate-600">
               Premium är inte aktivt ännu. Det här visar bara hur framtida
-              premiumfunktioner kan hjälpa dig att hitta pengar, rabatter och
-              skydd du redan har rätt till.
+              premiumfunktioner kan hjälpa dig att hitta abonnemang, rabatter,
+              förmåner, billigare alternativ och smartare påminnelser.
             </p>
           </div>
 
@@ -1945,38 +2456,51 @@ function PremiumDetailsModal({ onClose }: { onClose: () => void }) {
 
         <div className="mt-6 grid gap-4">
           <PremiumSection
-            icon="🏦"
-            title="Bank & mejl"
-            subtitle="Automatisk upptäckt"
+            icon="📥"
+            title="Import som du själv väljer"
+            subtitle="Automatisk hjälp utan krav"
             items={[
-              "Hitta abonnemang automatiskt via banktransaktioner.",
-              "Upptäck mejlkvitton, fakturor och återkommande betalningar.",
-              "Visa tjänster du kanske har glömt bort.",
-              "Samla kostnader per månad och år.",
+              "Ladda upp kvitton eller filer för att hitta kostnader och förmåner.",
+              "Mejlskanning kan senare hitta kvitton, fakturor och återkommande betalningar.",
+              "Bankkoppling kan bli ett frivilligt alternativ via säker bankkoppling/open banking.",
+              "Du kan alltid fortsätta använda appen manuellt utan att koppla något.",
             ]}
           />
 
           <PremiumSection
             icon="🏷️"
-            title="Rabatter & förmåner"
-            subtitle="Saker du redan kan ha rätt till"
+            title="Rabatter nära dig"
+            subtitle="Baserat på verklig data"
             items={[
-              "Visa rabatter via bankkort, medlemskap eller abonnemang.",
-              "Hitta förmåner nära dig, till exempel hotell, resor, restauranger och upplevelser.",
-              "Påminna om förmåner som ingår men inte används.",
-              "Visa om ett kort eller medlemskap faktiskt ger värde.",
+              "Visa bekräftade rabatter från dina medlemskap, kort och förmåner.",
+              "Matcha rabatter mot butiker och kategorier, till exempel vinterkläder, resor eller elektronik.",
+              "Påminna när en relevant rabatt kan vara värd att använda.",
+              "Inga gissningar: appen ska visa vad den faktiskt har grund för.",
             ]}
           />
 
           <PremiumSection
             icon="🧭"
-            title="Smart sparplan"
-            subtitle="Djupare analys"
+            title="Smartare analys"
+            subtitle="Mer än abonnemang"
             items={[
-              "Räkna på faktisk användning, till exempel mobildata, gym och molnlagring.",
-              "Hitta dubbla försäkringar och överlappande skydd.",
-              "Prioritera vad du bör göra först.",
-              "Visa en tydligare sparplan med möjlig besparing per månad och år.",
+              "Hitta överlapp mellan abonnemang, försäkringar, bankkort och medlemskap.",
+              "Visa förmåner du redan har rätt till men kanske inte använder.",
+              "Jämföra din kostnad mot billigare alternativ när appen har tillräcklig data.",
+              "För mobilabonnemang kan surfmängd, pris och användning vägas ihop.",
+              "Bygga en smart sparplan med vad du bör kontrollera först.",
+            ]}
+          />
+
+          <PremiumSection
+            icon="⏰"
+            title="Smarta påminnelser"
+            subtitle="När tipsen är relevanta"
+            items={[
+              "Påminna inför förnyelser, uppsägningstider och provperioder.",
+              "Ge säsongstips, till exempel inför vinterkläder, semester eller skolstart.",
+              "Koppla påminnelser till rabatter och förmåner som appen vet att du har.",
+              "Hjälpa dig använda rätt rabatt innan du handlar.",
             ]}
           />
         </div>
@@ -1986,9 +2510,10 @@ function PremiumDetailsModal({ onClose }: { onClose: () => void }) {
             Du väljer själv vad du vill koppla.
           </p>
           <p className="mt-1 text-sm text-slate-600">
-            Ingen bank eller mejl läses i gratisversionen. Om sådana funktioner
-            byggs senare ska användaren tydligt godkänna vad som kopplas och
-            kunna koppla bort det igen.
+            Gratisversionen kopplar inte bank eller mejl. Premium ska kunna
+            använda kvitton, filer, mejl eller säker bankkoppling om du själv väljer
+            det. Bankkoppling är aldrig ett krav, ska inte kräva att du skriver
+            banklösenord i appen och ska kunna kopplas bort igen.
           </p>
         </div>
 
@@ -2037,6 +2562,53 @@ function PremiumSection({
           </ul>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ServiceSuggestionDropdown({
+  services,
+  onChoose,
+}: {
+  services: KnownService[];
+  onChoose: (service: KnownService) => void;
+}) {
+  return (
+    <div className="absolute left-0 right-0 top-full z-40 mt-2 max-h-80 overflow-y-auto rounded-3xl border border-slate-200 bg-white p-2 shadow-xl">
+      <p className="px-3 py-2 text-xs font-black uppercase tracking-wide text-slate-500">
+        Vanliga tjänster
+      </p>
+
+      <div className="grid gap-1">
+        {services.map((service) => (
+          <button
+            key={service.displayName}
+            type="button"
+            onMouseDown={(event) => {
+              event.preventDefault();
+              onChoose(service);
+            }}
+            className="flex items-center justify-between gap-3 rounded-2xl px-3 py-2 text-left hover:bg-slate-100"
+          >
+            <div>
+              <p className="text-sm font-black text-slate-900">
+                {service.displayName}
+              </p>
+              <p className="text-xs font-semibold text-slate-500">
+                {service.category}
+              </p>
+            </div>
+
+            <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
+              Välj
+            </span>
+          </button>
+        ))}
+      </div>
+
+      <p className="px-3 py-2 text-xs font-semibold text-slate-500">
+        Finns den inte i listan? Skriv namnet själv.
+      </p>
     </div>
   );
 }
@@ -2124,8 +2696,9 @@ function GettingStartedGuide({
           </h2>
 
           <p className="mt-2 max-w-2xl text-sm text-slate-600">
-            Lägg till några abonnemang, medlemskap eller kort. Du kan börja med
-            streaming, mobil, gym, bankkort eller försäkring.
+            Lägg till några abonnemang, medlemskap eller kort. Benefitly visar
+            vad som kostar mest, används sällan, kan överlappa och vad du bör
+            kontrollera först.
           </p>
 
           <div className="mt-4 grid gap-2 text-sm text-slate-700 md:grid-cols-3">
@@ -2189,7 +2762,7 @@ function EmptyState({ onAddClick }: { onAddClick: () => void }) {
       <h3 className="mt-4 text-2xl font-black">Du har inga abonnemang ännu</h3>
 
       <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
-        Lägg till dina första abonnemang för att få en snabb rapport.
+        Välj en vanlig tjänst eller skriv själv för att få en snabb rapport.
       </p>
 
       <button
