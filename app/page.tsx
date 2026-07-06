@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 
+type BillingPeriod = "monthly" | "yearly";
+
 type Subscription = {
   id: number;
   name: string;
   category: string;
   price: number;
+  billingPeriod?: BillingPeriod;
   usage: string;
   plan?: string;
   benefits: string[];
@@ -387,6 +390,7 @@ const initialSubscriptions: Subscription[] = [
     name: "Spotify Premium",
     category: "Streaming",
     price: 119,
+    billingPeriod: "monthly",
     usage: "Ofta",
     plan: "Premium",
     benefits: getBenefitsForSubscription(
@@ -400,6 +404,7 @@ const initialSubscriptions: Subscription[] = [
     name: "Microsoft 365",
     category: "Molnlagring",
     price: 99,
+    billingPeriod: "monthly",
     usage: "Ibland",
     plan: "Family",
     benefits: getBenefitsForSubscription(
@@ -413,6 +418,7 @@ const initialSubscriptions: Subscription[] = [
     name: "Google One",
     category: "Molnlagring",
     price: 25,
+    billingPeriod: "monthly",
     usage: "Sällan",
     plan: "",
     benefits: getBenefitsForSubscription("Google One", "Molnlagring", ""),
@@ -422,6 +428,7 @@ const initialSubscriptions: Subscription[] = [
     name: "Nordic Wellness",
     category: "Gym",
     price: 399,
+    billingPeriod: "monthly",
     usage: "Sällan",
     plan: "",
     benefits: getBenefitsForSubscription("Nordic Wellness", "Gym", ""),
@@ -434,6 +441,30 @@ function formatCurrency(amount: number) {
     currency: activeCurrency,
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function getMonthlyPrice(subscription: Subscription) {
+  if (subscription.billingPeriod === "yearly") {
+    return subscription.price / 12;
+  }
+
+  return subscription.price;
+}
+
+function getYearlyPrice(subscription: Subscription) {
+  if (subscription.billingPeriod === "yearly") {
+    return subscription.price;
+  }
+
+  return subscription.price * 12;
+}
+
+function getBillingPeriodLabel(period?: BillingPeriod) {
+  if (period === "yearly") {
+    return "per år";
+  }
+
+  return "per månad";
 }
 
 function getBrowserDefaultSettings(): AppSettings {
@@ -488,6 +519,7 @@ export default function Home() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Streaming");
   const [price, setPrice] = useState("");
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
   const [usage, setUsage] = useState("Ofta");
   const [plan, setPlan] = useState("");
   const [showServiceSuggestions, setShowServiceSuggestions] = useState(false);
@@ -539,22 +571,31 @@ export default function Home() {
     }
   }, [currency, hasLoaded]);
 
-  const monthlyCost = subscriptions.reduce((sum, item) => sum + item.price, 0);
-  const yearlyCost = monthlyCost * 12;
+  const monthlyCost = subscriptions.reduce(
+    (sum, item) => sum + getMonthlyPrice(item),
+    0
+  );
+  const yearlyCost = subscriptions.reduce(
+    (sum, item) => sum + getYearlyPrice(item),
+    0
+  );
 
   const rarelyUsed = subscriptions.filter((item) => item.usage === "Sällan");
 
   const possibleMonthlySavings = rarelyUsed.reduce(
-    (sum, item) => sum + item.price,
+    (sum, item) => sum + getMonthlyPrice(item),
     0
   );
 
-  const possibleYearlySavings = possibleMonthlySavings * 12;
+  const possibleYearlySavings = rarelyUsed.reduce(
+    (sum, item) => sum + getYearlyPrice(item),
+    0
+  );
 
   const overlapInsights = getOverlapInsights(subscriptions);
 
   const strongWarnings = subscriptions.filter(
-    (item) => item.usage === "Sällan" && item.price >= 150
+    (item) => item.usage === "Sällan" && getMonthlyPrice(item) >= 150
   );
 
   const priceWarnings = subscriptions.filter(
@@ -573,6 +614,7 @@ export default function Home() {
     setName("");
     setCategory("Streaming");
     setPrice("");
+    setBillingPeriod("monthly");
     setUsage("Ofta");
     setPlan("");
     setEditingId(null);
@@ -618,6 +660,7 @@ export default function Home() {
                 name,
                 category,
                 price: priceAsNumber,
+                billingPeriod,
                 usage,
                 plan: cleanedPlan,
                 benefits: getBenefitsForSubscription(
@@ -640,6 +683,7 @@ export default function Home() {
       name,
       category,
       price: priceAsNumber,
+      billingPeriod,
       usage,
       plan: cleanedPlan,
       benefits: getBenefitsForSubscription(name, category, cleanedPlan),
@@ -665,6 +709,7 @@ export default function Home() {
     setName(subscription.name);
     setCategory(subscription.category);
     setPrice(subscription.price.toString());
+    setBillingPeriod(subscription.billingPeriod ?? "monthly");
     setUsage(subscription.usage);
     setPlan(subscription.plan ?? "");
     setShowForm(true);
@@ -942,18 +987,34 @@ export default function Home() {
                 </FormField>
 
                 <div>
-                  <FormField label="Faktisk kostnad per månad">
-                    <input
-                      value={price}
-                      onChange={(event) => setPrice(event.target.value)}
-                      placeholder="Exempel: 179"
-                      type="number"
-                      className={inputClassName}
-                    />
-                  </FormField>
+                  <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+                    <FormField label="Pris">
+                      <input
+                        value={price}
+                        onChange={(event) => setPrice(event.target.value)}
+                        placeholder="Exempel: 179"
+                        type="number"
+                        className={inputClassName}
+                      />
+                    </FormField>
+
+                    <FormField label="Betalas">
+                      <select
+                        value={billingPeriod}
+                        onChange={(event) =>
+                          setBillingPeriod(event.target.value as BillingPeriod)
+                        }
+                        className={inputClassName}
+                      >
+                        <option value="monthly">Per månad</option>
+                        <option value="yearly">Per år</option>
+                      </select>
+                    </FormField>
+                  </div>
+
                   <p className="mt-1 text-xs text-slate-500">
-                    Skriv priset du faktiskt betalar. Kolla kontoutdrag, mejl
-                    eller abonnemangssidan om du är osäker.
+                    Standard är per månad. Välj bara per år om tjänsten betalas
+                    årsvis, till exempel Microsoft 365 eller PlayStation Plus.
                   </p>
                 </div>
 
@@ -1103,18 +1164,51 @@ function getSuggestedServices(searchText: string) {
   }
 
   return knownServices
-    .filter((service) => {
+    .map((service) => {
       const displayName = normalizeText(service.displayName);
       const category = normalizeText(service.category);
-
-      return (
-        displayName.includes(normalizedSearch) ||
-        category.includes(normalizedSearch) ||
-        service.matchNames.some((matchName) =>
-          normalizeText(matchName).includes(normalizedSearch)
-        )
+      const normalizedMatchNames = service.matchNames.map((matchName) =>
+        normalizeText(matchName)
       );
+
+      let score = -1;
+
+      if (displayName.startsWith(normalizedSearch)) {
+        score = 100;
+      } else if (
+        normalizedMatchNames.some((matchName) =>
+          matchName.startsWith(normalizedSearch)
+        )
+      ) {
+        score = 90;
+      } else if (displayName.includes(normalizedSearch)) {
+        score = 70;
+      } else if (
+        normalizedMatchNames.some((matchName) =>
+          matchName.includes(normalizedSearch)
+        )
+      ) {
+        score = 60;
+      } else if (category.startsWith(normalizedSearch)) {
+        score = 40;
+      } else if (category.includes(normalizedSearch)) {
+        score = 30;
+      }
+
+      return {
+        service,
+        score,
+      };
     })
+    .filter((result) => result.score >= 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+
+      return a.service.displayName.localeCompare(b.service.displayName, "sv");
+    })
+    .map((result) => result.service)
     .slice(0, 12);
 }
 
@@ -1204,8 +1298,9 @@ function getPriceLimitsForCategory(category: string) {
 
 function getPriceSanity(subscription: Subscription): PriceSanity | null {
   const limits = getPriceLimitsForCategory(subscription.category);
+  const monthlyPrice = getMonthlyPrice(subscription);
 
-  if (subscription.price >= limits.extreme) {
+  if (monthlyPrice >= limits.extreme) {
     return {
       level: "extreme",
       unusualLimit: limits.unusual,
@@ -1214,7 +1309,7 @@ function getPriceSanity(subscription: Subscription): PriceSanity | null {
     };
   }
 
-  if (subscription.price >= limits.unusual) {
+  if (monthlyPrice >= limits.unusual) {
     return {
       level: "unusual",
       unusualLimit: limits.unusual,
@@ -1241,7 +1336,7 @@ function getHighestPriceWarning(subscriptions: Subscription[]) {
         return 1;
       }
 
-      return b.price - a.price;
+      return getMonthlyPrice(b) - getMonthlyPrice(a);
     })[0];
 }
 
@@ -1342,7 +1437,7 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
       return {
         title: `Kontrollera priset på ${priceWarning.name}`,
         text: `${priceWarning.name} kostar ${formatCurrency(
-          priceWarning.price
+          getMonthlyPrice(priceWarning)
         )}/mån, vilket verkar ${
           sanity.level === "extreme" ? "extremt högt" : "ovanligt högt"
         } för ${sanity.categoryLabel}. Kontrollera om priset är rätt inskrivet, om det gäller per år eller om en billigare plan/ett billigare alternativ räcker.`,
@@ -1351,8 +1446,8 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
   }
 
   const rarelyUsedExpensive = subscriptions
-    .filter((item) => item.usage === "Sällan" && item.price >= 150)
-    .sort((a, b) => b.price - a.price);
+    .filter((item) => item.usage === "Sällan" && getMonthlyPrice(item) >= 150)
+    .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
 
   if (rarelyUsedExpensive.length > 0) {
     const item = rarelyUsedExpensive[0];
@@ -1360,7 +1455,7 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
     return {
       title: `Börja med ${item.name}`,
       text: `${item.name} kostar ${formatCurrency(
-        item.price
+        getMonthlyPrice(item)
       )}/mån och används sällan. Det är din tydligaste sparsignal just nu.`,
     };
   }
@@ -1390,17 +1485,17 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
           "3",
         ])
     )
-    .sort((a, b) => b.price - a.price);
+    .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
 
   const mobileToCheck = mobileSubscriptions.find(
-    (item) => item.price >= 250 || item.usage !== "Ofta"
+    (item) => getMonthlyPrice(item) >= 250 || item.usage !== "Ofta"
   );
 
   if (mobileToCheck) {
     return {
       title: `Kolla surfmängden i ${mobileToCheck.name}`,
       text: `Gratisversionen kan inte se faktisk mobildata, men ${mobileToCheck.name} kostar ${formatCurrency(
-        mobileToCheck.price
+        getMonthlyPrice(mobileToCheck)
       )}/mån. Kolla om en billigare surfmängd räcker.`,
     };
   }
@@ -1421,7 +1516,7 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
 
   const rarelyUsed = subscriptions
     .filter((item) => item.usage === "Sällan")
-    .sort((a, b) => b.price - a.price);
+    .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
 
   if (rarelyUsed.length > 0) {
     const item = rarelyUsed[0];
@@ -1433,8 +1528,8 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
   }
 
   const sometimesExpensive = subscriptions
-    .filter((item) => item.usage === "Ibland" && item.price >= 250)
-    .sort((a, b) => b.price - a.price);
+    .filter((item) => item.usage === "Ibland" && getMonthlyPrice(item) >= 250)
+    .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
 
   if (sometimesExpensive.length > 0) {
     const item = sometimesExpensive[0];
@@ -1442,12 +1537,14 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
     return {
       title: `Kolla priset på ${item.name}`,
       text: `${item.name} kostar ${formatCurrency(
-        item.price
+        getMonthlyPrice(item)
       )}/mån och används ibland. Se om billigare plan räcker.`,
     };
   }
 
-  const mostExpensive = [...subscriptions].sort((a, b) => b.price - a.price)[0];
+  const mostExpensive = [...subscriptions].sort(
+    (a, b) => getMonthlyPrice(b) - getMonthlyPrice(a)
+  )[0];
 
   if (mostExpensive) {
     return {
@@ -1466,7 +1563,7 @@ function getValueAssessment(subscription: Subscription) {
     return {
       label: "Extremt hög kostnad",
       description: `${formatCurrency(
-        subscription.price
+        getMonthlyPrice(subscription)
       )}/mån verkar extremt högt för ${priceSanity.categoryLabel}.`,
       className: "border-red-200 bg-red-50 text-red-800",
     };
@@ -1476,17 +1573,17 @@ function getValueAssessment(subscription: Subscription) {
     return {
       label: "Ovanligt hög kostnad",
       description: `${formatCurrency(
-        subscription.price
+        getMonthlyPrice(subscription)
       )}/mån verkar högt för ${priceSanity.categoryLabel}.`,
       className: "border-amber-200 bg-amber-50 text-amber-800",
     };
   }
 
-  if (subscription.usage === "Sällan" && subscription.price >= 150) {
+  if (subscription.usage === "Sällan" && getMonthlyPrice(subscription) >= 150) {
     return {
       label: "Dyrt för låg användning",
       description: `${formatCurrency(
-        subscription.price
+        getMonthlyPrice(subscription)
       )}/mån och används sällan.`,
       className: "border-red-200 bg-red-50 text-red-800",
     };
@@ -1500,7 +1597,7 @@ function getValueAssessment(subscription: Subscription) {
     };
   }
 
-  if (subscription.usage === "Ibland" && subscription.price >= 250) {
+  if (subscription.usage === "Ibland" && getMonthlyPrice(subscription) >= 250) {
     return {
       label: "Kolla priset",
       description: "Används ibland men kostar en del.",
@@ -1508,7 +1605,7 @@ function getValueAssessment(subscription: Subscription) {
     };
   }
 
-  if (subscription.usage === "Ofta" && subscription.price <= 150) {
+  if (subscription.usage === "Ofta" && getMonthlyPrice(subscription) <= 150) {
     return {
       label: "Bra värde",
       description: "Används ofta och kostnaden verkar rimlig.",
@@ -1538,7 +1635,7 @@ function getRecommendedAction(subscription: Subscription) {
     return "Kontrollera priset, år/månad och om billigare plan eller alternativ räcker.";
   }
 
-  if (subscription.usage === "Sällan" && subscription.price >= 150) {
+  if (subscription.usage === "Sällan" && getMonthlyPrice(subscription) >= 150) {
     return "Pausa eller säg upp om du inte behöver den.";
   }
 
@@ -1546,7 +1643,7 @@ function getRecommendedAction(subscription: Subscription) {
     return "Kolla om tjänsten fortfarande behövs.";
   }
 
-  if (subscription.category === "Mobil" && subscription.price >= 250) {
+  if (subscription.category === "Mobil" && getMonthlyPrice(subscription) >= 250) {
     return "Kolla surfmängd och billigare plan.";
   }
 
@@ -1558,7 +1655,7 @@ function getRecommendedAction(subscription: Subscription) {
     return "Kolla om skyddet redan ingår någon annanstans.";
   }
 
-  if (subscription.usage === "Ibland" && subscription.price >= 250) {
+  if (subscription.usage === "Ibland" && getMonthlyPrice(subscription) >= 250) {
     return "Kolla billigare plan eller alternativ.";
   }
 
@@ -1573,21 +1670,21 @@ function getRecommendationReason(subscription: Subscription) {
   const priceSanity = getPriceSanity(subscription);
 
   if (priceSanity) {
-    return `${formatCurrency(subscription.price)}/mån verkar ${
+    return `${formatCurrency(getMonthlyPrice(subscription))}/mån verkar ${
       priceSanity.level === "extreme" ? "extremt högt" : "ovanligt högt"
     } för ${priceSanity.categoryLabel}.`;
   }
 
-  if (subscription.usage === "Sällan" && subscription.price >= 150) {
-    return `${formatCurrency(subscription.price)}/mån och används sällan.`;
+  if (subscription.usage === "Sällan" && getMonthlyPrice(subscription) >= 150) {
+    return `${formatCurrency(getMonthlyPrice(subscription))}/mån och används sällan.`;
   }
 
   if (subscription.usage === "Sällan") {
     return "Används sällan.";
   }
 
-  if (subscription.usage === "Ibland" && subscription.price >= 250) {
-    return `${formatCurrency(subscription.price)}/mån och används ibland.`;
+  if (subscription.usage === "Ibland" && getMonthlyPrice(subscription) >= 250) {
+    return `${formatCurrency(getMonthlyPrice(subscription))}/mån och används ibland.`;
   }
 
   return "";
@@ -1602,7 +1699,7 @@ function shouldShowRecommendationReason(subscription: Subscription) {
     return true;
   }
 
-  if (subscription.usage === "Ibland" && subscription.price >= 250) {
+  if (subscription.usage === "Ibland" && getMonthlyPrice(subscription) >= 250) {
     return true;
   }
 
@@ -2103,8 +2200,8 @@ function DetectiveReport({
 
           {focusSubscription && (
             <div className="mt-3 rounded-2xl bg-white/80 p-3 text-sm font-bold text-emerald-950">
-              {formatCurrency(focusSubscription.price)}/mån kan motsvara{" "}
-              {formatCurrency(focusSubscription.price * 12)} per år.
+              {formatCurrency(getMonthlyPrice(focusSubscription))}/mån kan motsvara{" "}
+              {formatCurrency(getYearlyPrice(focusSubscription))} per år.
             </div>
           )}
         </div>
@@ -2158,8 +2255,8 @@ function getReportFocusSubscription(subscriptions: Subscription[]) {
   }
 
   const rarelyUsedExpensive = subscriptions
-    .filter((item) => item.usage === "Sällan" && item.price >= 150)
-    .sort((a, b) => b.price - a.price);
+    .filter((item) => item.usage === "Sällan" && getMonthlyPrice(item) >= 150)
+    .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
 
   if (rarelyUsedExpensive.length > 0) {
     return rarelyUsedExpensive[0];
@@ -2167,15 +2264,15 @@ function getReportFocusSubscription(subscriptions: Subscription[]) {
 
   const rarelyUsed = subscriptions
     .filter((item) => item.usage === "Sällan")
-    .sort((a, b) => b.price - a.price);
+    .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
 
   if (rarelyUsed.length > 0) {
     return rarelyUsed[0];
   }
 
   const sometimesExpensive = subscriptions
-    .filter((item) => item.usage === "Ibland" && item.price >= 250)
-    .sort((a, b) => b.price - a.price);
+    .filter((item) => item.usage === "Ibland" && getMonthlyPrice(item) >= 250)
+    .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
 
   if (sometimesExpensive.length > 0) {
     return sometimesExpensive[0];
@@ -2964,8 +3061,17 @@ function SubscriptionCard({
 
           <div className="text-right">
             <p className="text-lg font-black">
-              {formatCurrency(subscription.price)}/mån
+              {formatCurrency(getMonthlyPrice(subscription))}/mån
             </p>
+            {subscription.billingPeriod === "yearly" ? (
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                {formatCurrency(subscription.price)} per år
+              </p>
+            ) : (
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                {getBillingPeriodLabel(subscription.billingPeriod)}
+              </p>
+            )}
 
             <div
               className={`mt-4 rounded-full border px-3 py-1 text-xs font-bold ${valueAssessment.className}`}
