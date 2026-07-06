@@ -12,12 +12,19 @@ type Subscription = {
   billingPeriod?: BillingPeriod;
   usage: string;
   plan?: string;
+  priceConfirmed?: boolean;
   benefits: string[];
 };
 
 type Insight = {
   title: string;
   text: string;
+};
+
+type CheckItem = {
+  id: string;
+  title: string;
+  reasons: string[];
 };
 
 type KnownService = {
@@ -1118,12 +1125,18 @@ export default function Home() {
 
   const rarelyUsed = subscriptions.filter((item) => item.usage === "Sällan");
 
-  const possibleMonthlySavings = rarelyUsed.reduce(
+  const savingsCandidates = rarelyUsed.filter(
+    (item) =>
+      (getPriceSanity(item)?.level !== "low" || item.priceConfirmed) &&
+      !isConfirmedVeryLowCost(item)
+  );
+
+  const possibleMonthlySavings = savingsCandidates.reduce(
     (sum, item) => sum + getMonthlyPrice(item),
     0
   );
 
-  const possibleYearlySavings = rarelyUsed.reduce(
+  const possibleYearlySavings = savingsCandidates.reduce(
     (sum, item) => sum + getYearlyPrice(item),
     0
   );
@@ -1138,11 +1151,8 @@ export default function Home() {
     (item) => getPriceSanity(item) !== null
   );
 
-  const thingsToCheck =
-    rarelyUsed.length +
-    overlapInsights.length +
-    strongWarnings.length +
-    priceWarnings.length;
+  const checkItems = getCheckItems(subscriptions, overlapInsights);
+  const thingsToCheck = checkItems.length;
 
   const bestNextAction = getBestNextAction(subscriptions);
 
@@ -1214,6 +1224,7 @@ export default function Home() {
                 billingPeriod,
                 usage,
                 plan: cleanedPlan,
+                priceConfirmed: false,
                 benefits: getBenefitsForSubscription(
                   name,
                   category,
@@ -1237,6 +1248,7 @@ export default function Home() {
       billingPeriod,
       usage,
       plan: cleanedPlan,
+      priceConfirmed: false,
       benefits: getBenefitsForSubscription(name, category, cleanedPlan),
     };
 
@@ -1268,6 +1280,14 @@ export default function Home() {
     setUsage(subscription.usage);
     setPlan(subscription.plan ?? "");
     setShowForm(true);
+  }
+
+  function handleConfirmPrice(id: number) {
+    setSubscriptions(
+      subscriptions.map((item) =>
+        item.id === id ? { ...item, priceConfirmed: true } : item
+      )
+    );
   }
 
   function handleCancelEdit() {
@@ -1407,13 +1427,7 @@ export default function Home() {
                   description="Inlagda tjänster"
                 />
 
-                <DashboardCard
-                  icon="⚠️"
-                  title="Saker att kolla"
-                  value={thingsToCheck.toString()}
-                  description="Prioriterade kontroller"
-                  warning
-                />
+                <CheckItemsCard checkItems={checkItems} />
               </section>
             </div>
 
@@ -1425,6 +1439,7 @@ export default function Home() {
                 overlapInsights={overlapInsights}
                 strongWarnings={strongWarnings}
                 priceWarnings={priceWarnings}
+                checkItems={checkItems}
                 bestNextAction={bestNextAction}
               />
 
@@ -1692,6 +1707,7 @@ export default function Home() {
                   subscription={subscription}
                   onDelete={handleDeleteSubscription}
                   onEdit={handleEditSubscription}
+                  onConfirmPrice={handleConfirmPrice}
                 />
               ))}
             </div>
@@ -1879,14 +1895,8 @@ function getPriceLimitsForCategory(category: string) {
   return makeLimit(1000, 2000, "den här typen av tjänst");
 }
 
-function getLowPriceLimitForKnownPaidService(subscription: Subscription) {
-  const service = findKnownService(subscription.name);
-
-  if (!service) {
-    return null;
-  }
-
-  const servicesThatCanBeFree = [
+function getServicesThatCanBeFree() {
+  return [
     "IKEA Family",
     "H&M",
     "ICA",
@@ -1899,8 +1909,45 @@ function getLowPriceLimitForKnownPaidService(subscription: Subscription) {
     "Apotek Hjärtat",
     "Lyko",
   ];
+}
 
-  if (servicesThatCanBeFree.includes(service.displayName)) {
+function isLikelyFreeMembership(subscription: Subscription) {
+  if (getMonthlyPrice(subscription) !== 0) {
+    return false;
+  }
+
+  const service = findKnownService(subscription.name);
+
+  if (service && getServicesThatCanBeFree().includes(service.displayName)) {
+    return true;
+  }
+
+  return (
+    subscription.category === "Medlemskap" ||
+    subscription.category === "Shopping"
+  );
+}
+
+function getVeryLowCostLimit() {
+  return Math.round(20 * getCurrencyMultiplier());
+}
+
+function isConfirmedVeryLowCost(subscription: Subscription) {
+  return (
+    subscription.priceConfirmed === true &&
+    getMonthlyPrice(subscription) > 0 &&
+    getMonthlyPrice(subscription) < getVeryLowCostLimit()
+  );
+}
+
+function getLowPriceLimitForKnownPaidService(subscription: Subscription) {
+  const service = findKnownService(subscription.name);
+
+  if (!service) {
+    return null;
+  }
+
+  if (getServicesThatCanBeFree().includes(service.displayName)) {
     return null;
   }
 
@@ -1926,7 +1973,7 @@ function getLowPriceLimitForKnownPaidService(subscription: Subscription) {
   return Math.round(20 * getCurrencyMultiplier());
 }
 
-function getPriceSanity(subscription: Subscription): PriceSanity | null {
+function getRawPriceSanity(subscription: Subscription): PriceSanity | null {
   const limits = getPriceLimitsForCategory(subscription.category);
   const monthlyPrice = getMonthlyPrice(subscription);
   const lowPriceLimit = getLowPriceLimitForKnownPaidService(subscription);
@@ -1968,6 +2015,14 @@ function getPriceSanity(subscription: Subscription): PriceSanity | null {
   }
 
   return null;
+}
+
+function getPriceSanity(subscription: Subscription): PriceSanity | null {
+  if (subscription.priceConfirmed) {
+    return null;
+  }
+
+  return getRawPriceSanity(subscription);
 }
 
 function getHighestPriceWarning(subscriptions: Subscription[]) {
@@ -2087,6 +2142,65 @@ function getOverlapInsights(subscriptions: Subscription[]): Insight[] {
   return insights;
 }
 
+function getCheckItems(
+  subscriptions: Subscription[],
+  overlapInsights: Insight[]
+): CheckItem[] {
+  const subscriptionChecks = subscriptions
+    .map((subscription) => {
+      const reasons: string[] = [];
+      const priceSanity = getPriceSanity(subscription);
+      const monthlyPrice = getMonthlyPrice(subscription);
+
+      if (priceSanity?.level === "low") {
+        reasons.push("Priset verkar ovanligt lågt");
+      }
+
+      if (priceSanity?.level === "unusual") {
+        reasons.push("Priset verkar ovanligt högt");
+      }
+
+      if (priceSanity?.level === "extreme") {
+        reasons.push("Priset verkar extremt högt");
+      }
+
+      if (!isConfirmedVeryLowCost(subscription)) {
+        if (subscription.usage === "Sällan" && monthlyPrice >= 150) {
+          reasons.push("Används sällan och kostar en del");
+        } else if (subscription.usage === "Sällan") {
+          reasons.push("Används sällan");
+        }
+      }
+
+      if (subscription.usage === "Ibland" && monthlyPrice >= 250) {
+        reasons.push("Används ibland och kostar en del");
+      }
+
+      if (subscription.category === "Mobil" && monthlyPrice >= 250) {
+        reasons.push("Mobilkostnaden kan vara värd att jämföra");
+      }
+
+      if (reasons.length === 0) {
+        return null;
+      }
+
+      return {
+        id: `subscription-${subscription.id}`,
+        title: subscription.name,
+        reasons,
+      };
+    })
+    .filter((item): item is CheckItem => item !== null);
+
+  const overlapChecks = overlapInsights.map((insight, index) => ({
+    id: `overlap-${index}`,
+    title: insight.title,
+    reasons: [insight.text],
+  }));
+
+  return [...subscriptionChecks, ...overlapChecks];
+}
+
 function getBestNextAction(subscriptions: Subscription[]): Insight | null {
   if (subscriptions.length === 0) {
     return {
@@ -2191,7 +2305,7 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
   }
 
   const rarelyUsed = subscriptions
-    .filter((item) => item.usage === "Sällan")
+    .filter((item) => item.usage === "Sällan" && !isConfirmedVeryLowCost(item))
     .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
 
   if (rarelyUsed.length > 0) {
@@ -2235,6 +2349,14 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
 function getValueAssessment(subscription: Subscription) {
   const priceSanity = getPriceSanity(subscription);
 
+  if (isLikelyFreeMembership(subscription)) {
+    return {
+      label: "Gratis medlemskap",
+      description: "Kostar 0 kr. Värdet beror på om rabatter, bonus eller förmåner används.",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    };
+  }
+
   if (priceSanity?.level === "low") {
     return {
       label: "Ovanligt lågt pris",
@@ -2262,6 +2384,16 @@ function getValueAssessment(subscription: Subscription) {
         getMonthlyPrice(subscription)
       )}/mån verkar högt för ${priceSanity.categoryLabel}.`,
       className: "border-amber-200 bg-amber-50 text-amber-800",
+    };
+  }
+
+  if (isConfirmedVeryLowCost(subscription)) {
+    return {
+      label: "Låg kostnad",
+      description: `Priset är bekräftat och kostnaden är bara ${formatCurrency(
+        getMonthlyPrice(subscription)
+      )}/mån.`,
+      className: "border-emerald-200 bg-emerald-50 text-emerald-800",
     };
   }
 
@@ -2317,12 +2449,22 @@ function getValueAssessment(subscription: Subscription) {
 function getRecommendedAction(subscription: Subscription) {
   const priceSanity = getPriceSanity(subscription);
 
+  if (isLikelyFreeMembership(subscription)) {
+    return "Gratis medlemskap. Behåll om du använder rabatter, bonus eller förmåner.";
+  }
+
   if (priceSanity?.level === "low") {
     return "Kontrollera om priset stämmer, om det är kampanj, delad kostnad eller provperiod.";
   }
 
   if (priceSanity) {
     return "Kontrollera priset, år/månad och vad som ingår. Det kan vara rimligt om förmånerna är mycket värdefulla.";
+  }
+
+  if (isConfirmedVeryLowCost(subscription)) {
+    return `Behåll om du får någon nytta av tjänsten. Besparingen är bara ${formatCurrency(
+      getMonthlyPrice(subscription)
+    )}/mån.`;
   }
 
   if (subscription.usage === "Sällan" && getMonthlyPrice(subscription) >= 150) {
@@ -2359,6 +2501,10 @@ function getRecommendedAction(subscription: Subscription) {
 function getRecommendationReason(subscription: Subscription) {
   const priceSanity = getPriceSanity(subscription);
 
+  if (isLikelyFreeMembership(subscription)) {
+    return "0 kr/mån påverkar inte kostnaden, men förmånerna kan ändå vara värda att använda.";
+  }
+
   if (priceSanity?.level === "low") {
     return `${formatCurrency(
       getMonthlyPrice(subscription)
@@ -2369,6 +2515,10 @@ function getRecommendationReason(subscription: Subscription) {
     return `${formatCurrency(getMonthlyPrice(subscription))}/mån verkar ${
       priceSanity.level === "extreme" ? "extremt högt" : "ovanligt högt"
     } för ${priceSanity.categoryLabel}.`;
+  }
+
+  if (isConfirmedVeryLowCost(subscription)) {
+    return "Kostnaden är så låg att den normalt inte är en viktig sparsignal.";
   }
 
   if (subscription.usage === "Sällan" && getMonthlyPrice(subscription) >= 150) {
@@ -2387,7 +2537,15 @@ function getRecommendationReason(subscription: Subscription) {
 }
 
 function shouldShowRecommendationReason(subscription: Subscription) {
+  if (isLikelyFreeMembership(subscription)) {
+    return true;
+  }
+
   if (getPriceSanity(subscription)) {
+    return true;
+  }
+
+  if (isConfirmedVeryLowCost(subscription)) {
     return true;
   }
 
@@ -2778,6 +2936,61 @@ function getBenefitsByCategory(category: string) {
   ];
 }
 
+function CheckItemsCard({ checkItems }: { checkItems: CheckItem[] }) {
+  const [showDetails, setShowDetails] = useState(false);
+
+  return (
+    <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-100 text-xl">
+          ⚠️
+        </div>
+
+        <div>
+          <p className="text-sm font-medium text-slate-500">
+            Saker att kontrollera
+          </p>
+          <p className="mt-1 text-3xl font-black text-amber-700">
+            {checkItems.length}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <p className="text-sm text-slate-500">Prioriterade kontroller</p>
+
+        {checkItems.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowDetails(!showDetails)}
+            className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700 hover:bg-slate-200"
+          >
+            {showDetails ? "Dölj ▲" : "Visa detaljer ▼"}
+          </button>
+        )}
+      </div>
+
+      {showDetails && checkItems.length > 0 && (
+        <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-3">
+          {checkItems.map((item) => (
+            <div key={item.id} className="rounded-2xl bg-white p-3 shadow-sm">
+              <p className="text-sm font-black text-slate-900">{item.title}</p>
+
+              <ul className="mt-2 space-y-1">
+                {item.reasons.map((reason) => (
+                  <li key={reason} className="text-xs font-semibold text-slate-600">
+                    • {reason}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardCard({
   icon,
   title,
@@ -2836,6 +3049,7 @@ function DetectiveReport({
   overlapInsights,
   strongWarnings,
   priceWarnings,
+  checkItems,
   bestNextAction,
 }: {
   subscriptions: Subscription[];
@@ -2844,6 +3058,7 @@ function DetectiveReport({
   overlapInsights: Insight[];
   strongWarnings: Subscription[];
   priceWarnings: Subscription[];
+  checkItems: CheckItem[];
   bestNextAction: Insight | null;
 }) {
   const [showNextActionDetails, setShowNextActionDetails] = useState(false);
@@ -2861,11 +3076,7 @@ function DetectiveReport({
 
   const firstOverlap = overlapInsights[0];
   const focusSubscription = getReportFocusSubscription(subscriptions);
-  const reportCheckCount =
-    rarelyUsed.length +
-    overlapInsights.length +
-    strongWarnings.length +
-    priceWarnings.length;
+  const reportCheckCount = checkItems.length;
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -2938,20 +3149,15 @@ function DetectiveReport({
 
           <ReportLine
             icon="⚠️"
-            text={`${rarelyUsed.length} abonnemang används sällan`}
+            text={`${checkItems.length} unik kontrollpunkt${
+              checkItems.length === 1 ? "" : "er"
+            }`}
           />
-
-          {strongWarnings.length > 0 && (
-            <ReportLine
-              icon="🔥"
-              text={`${strongWarnings.length} dyr tjänst används sällan`}
-            />
-          )}
 
           {priceWarnings.length > 0 && (
             <ReportLine
               icon="🧾"
-              text={`${priceWarnings.length} pris bör kontrolleras`}
+              text="Minst ett pris bör kontrolleras"
             />
           )}
 
@@ -2978,7 +3184,7 @@ function getReportFocusSubscription(subscriptions: Subscription[]) {
   }
 
   const rarelyUsed = subscriptions
-    .filter((item) => item.usage === "Sällan")
+    .filter((item) => item.usage === "Sällan" && !isConfirmedVeryLowCost(item))
     .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
 
   if (rarelyUsed.length > 0) {
@@ -3754,16 +3960,21 @@ function SubscriptionCard({
   subscription,
   onDelete,
   onEdit,
+  onConfirmPrice,
 }: {
   subscription: Subscription;
   onDelete: (id: number) => void;
   onEdit: (subscription: Subscription) => void;
+  onConfirmPrice: (id: number) => void;
 }) {
   const [showBenefits, setShowBenefits] = useState(false);
   const valueAssessment = getValueAssessment(subscription);
   const recommendedAction = getRecommendedAction(subscription);
   const recommendationReason = getRecommendationReason(subscription);
   const serviceIcon = getServiceIcon(subscription);
+  const rawPriceSanity = getRawPriceSanity(subscription);
+  const shouldShowConfirmPriceButton =
+    rawPriceSanity !== null && !subscription.priceConfirmed;
 
   return (
     <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -3818,6 +4029,16 @@ function SubscriptionCard({
             >
               {valueAssessment.label}
             </div>
+
+            {shouldShowConfirmPriceButton && (
+              <button
+                type="button"
+                onClick={() => onConfirmPrice(subscription.id)}
+                className="mt-2 rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 hover:bg-slate-100"
+              >
+                Priset är korrekt
+              </button>
+            )}
           </div>
         </div>
 
