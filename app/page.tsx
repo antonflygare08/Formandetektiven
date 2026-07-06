@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type BillingPeriod = "monthly" | "yearly";
 
@@ -25,6 +25,7 @@ type KnownService = {
   matchNames: string[];
   category: string;
   plans: string[];
+  recommendedBillingPeriod?: BillingPeriod;
   note: string;
 };
 
@@ -57,6 +58,7 @@ const knownServices: KnownService[] = [
     matchNames: ["netflix"],
     category: "Streaming",
     plans: ["Standard", "Premium", "Med reklam"],
+    recommendedBillingPeriod: "monthly",
     note: "Netflix känns igen. Välj den plan du har och skriv in vad du faktiskt betalar.",
   },
   {
@@ -64,6 +66,7 @@ const knownServices: KnownService[] = [
     matchNames: ["spotify"],
     category: "Streaming",
     plans: ["Individual", "Duo", "Family", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "Spotify känns igen. Kolla om Duo eller Family passar bättre om flera använder tjänsten.",
   },
   {
@@ -71,6 +74,7 @@ const knownServices: KnownService[] = [
     matchNames: ["max", "hbo", "hbo max"],
     category: "Streaming",
     plans: ["Basic", "Standard", "Premium", "Sport"],
+    recommendedBillingPeriod: "monthly",
     note: "Max känns igen. Kontrollera om du har ett paket med extra innehåll eller sport.",
   },
   {
@@ -78,6 +82,7 @@ const knownServices: KnownService[] = [
     matchNames: ["disney", "disney+"],
     category: "Streaming",
     plans: ["Standard", "Premium"],
+    recommendedBillingPeriod: "monthly",
     note: "Disney+ känns igen. Välj plan och skriv priset du faktiskt betalar.",
   },
   {
@@ -85,6 +90,7 @@ const knownServices: KnownService[] = [
     matchNames: ["youtube premium"],
     category: "Streaming",
     plans: ["Individual", "Family", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "YouTube Premium kan även innehålla YouTube Music. Kolla så du inte betalar dubbelt för musik.",
   },
   {
@@ -92,6 +98,7 @@ const knownServices: KnownService[] = [
     matchNames: ["youtube music"],
     category: "Streaming",
     plans: ["Individual", "Family", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "YouTube Music känns igen. Kontrollera om det redan ingår i YouTube Premium.",
   },
   {
@@ -99,6 +106,7 @@ const knownServices: KnownService[] = [
     matchNames: ["apple music"],
     category: "Streaming",
     plans: ["Individual", "Family", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "Apple Music känns igen. Kolla om du även har musik via någon annan tjänst.",
   },
   {
@@ -106,6 +114,7 @@ const knownServices: KnownService[] = [
     matchNames: ["viaplay"],
     category: "Streaming",
     plans: ["Film & Serier", "Medium", "Total", "Sport"],
+    recommendedBillingPeriod: "monthly",
     note: "Viaplay känns igen. Sportpaket kan vara dyrare, så kontrollera om du använder det.",
   },
   {
@@ -113,6 +122,7 @@ const knownServices: KnownService[] = [
     matchNames: ["tv4", "tv4 play", "cmore", "c more"],
     category: "Streaming",
     plans: ["Basic", "Plus", "Premium", "Sport"],
+    recommendedBillingPeriod: "monthly",
     note: "TV4 Play känns igen. Kontrollera om sport eller premiuminnehåll ingår.",
   },
   {
@@ -120,6 +130,7 @@ const knownServices: KnownService[] = [
     matchNames: ["amazon prime", "prime video", "prime"],
     category: "Streaming",
     plans: ["Prime", "Prime Video"],
+    recommendedBillingPeriod: "monthly",
     note: "Prime kan innehålla flera förmåner. Kolla om du använder mer än bara video.",
   },
   {
@@ -127,6 +138,7 @@ const knownServices: KnownService[] = [
     matchNames: ["crunchyroll"],
     category: "Streaming",
     plans: ["Fan", "Mega Fan", "Ultimate Fan"],
+    recommendedBillingPeriod: "monthly",
     note: "Crunchyroll känns igen. Välj plan och skriv in vad du betalar.",
   },
   {
@@ -134,6 +146,7 @@ const knownServices: KnownService[] = [
     matchNames: ["google one"],
     category: "Molnlagring",
     plans: ["Basic", "Standard", "Premium"],
+    recommendedBillingPeriod: "monthly",
     note: "Google One känns igen. Kan överlappa med iCloud, Dropbox eller OneDrive.",
   },
   {
@@ -141,6 +154,7 @@ const knownServices: KnownService[] = [
     matchNames: ["microsoft 365", "office 365", "microsoft office"],
     category: "Molnlagring",
     plans: ["Personal", "Family"],
+    recommendedBillingPeriod: "yearly",
     note: "Microsoft 365 känns igen. OneDrive-lagring ingår ofta och kan överlappa med annan molnlagring.",
   },
   {
@@ -148,6 +162,7 @@ const knownServices: KnownService[] = [
     matchNames: ["icloud", "apple icloud"],
     category: "Molnlagring",
     plans: ["50 GB", "200 GB", "2 TB", "6 TB", "12 TB"],
+    recommendedBillingPeriod: "monthly",
     note: "iCloud känns igen. Kan överlappa med Google One eller Microsoft 365.",
   },
   {
@@ -155,6 +170,7 @@ const knownServices: KnownService[] = [
     matchNames: ["dropbox"],
     category: "Molnlagring",
     plans: ["Basic", "Plus", "Family", "Professional"],
+    recommendedBillingPeriod: "monthly",
     note: "Dropbox känns igen. Kolla om du redan har tillräcklig lagring via annan tjänst.",
   },
   {
@@ -162,6 +178,7 @@ const knownServices: KnownService[] = [
     matchNames: ["nordic wellness"],
     category: "Gym",
     plans: ["Bas", "Standard", "Premium", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "Nordic Wellness känns igen. Gym är extra viktigt att jämföra med hur ofta du faktiskt tränar.",
   },
   {
@@ -169,6 +186,7 @@ const knownServices: KnownService[] = [
     matchNames: ["sats"],
     category: "Gym",
     plans: ["Basic", "Premium", "All access", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "SATS känns igen. Kontrollera om du behöver tillgång till flera center.",
   },
   {
@@ -176,6 +194,7 @@ const knownServices: KnownService[] = [
     matchNames: ["fitness24seven", "fitness 24 seven", "fitness 24/7"],
     category: "Gym",
     plans: ["Gym", "Gym + gruppträning", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "Fitness24Seven känns igen. Kolla om du använder gymmet tillräckligt ofta.",
   },
   {
@@ -183,6 +202,7 @@ const knownServices: KnownService[] = [
     matchNames: ["foodora"],
     category: "Mat och leverans",
     plans: ["Pro", "Plus", "Medlemskap"],
+    recommendedBillingPeriod: "monthly",
     note: "Foodora känns igen. Matleverans kan bli dyrt om avgifter och småköp glöms bort.",
   },
   {
@@ -190,6 +210,7 @@ const knownServices: KnownService[] = [
     matchNames: ["wolt"],
     category: "Mat och leverans",
     plans: ["Wolt+", "Medlemskap"],
+    recommendedBillingPeriod: "monthly",
     note: "Wolt känns igen. Kontrollera om medlemskapet lönar sig jämfört med hur ofta du beställer.",
   },
   {
@@ -197,6 +218,7 @@ const knownServices: KnownService[] = [
     matchNames: ["skyshowtime", "sky showtime"],
     category: "Streaming",
     plans: ["Standard", "Premium"],
+    recommendedBillingPeriod: "monthly",
     note: "SkyShowtime känns igen. Kontrollera om du använder tjänsten varje månad eller bara ibland.",
   },
   {
@@ -204,6 +226,7 @@ const knownServices: KnownService[] = [
     matchNames: ["apple tv", "apple tv+"],
     category: "Streaming",
     plans: ["Standard", "Apple One"],
+    recommendedBillingPeriod: "monthly",
     note: "Apple TV+ känns igen. Kontrollera om tjänsten ingår i Apple One eller betalas separat.",
   },
   {
@@ -211,6 +234,7 @@ const knownServices: KnownService[] = [
     matchNames: ["discovery", "discovery+"],
     category: "Streaming",
     plans: ["Underhållning", "Sport", "Total"],
+    recommendedBillingPeriod: "monthly",
     note: "Discovery+ känns igen. Sportpaket kan vara dyrare, så kontrollera om du använder det.",
   },
   {
@@ -218,6 +242,7 @@ const knownServices: KnownService[] = [
     matchNames: ["storytel"],
     category: "Medlemskap",
     plans: ["Unlimited", "Family", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "Storytel känns igen. Kontrollera om du använder ljudböcker tillräckligt ofta.",
   },
   {
@@ -225,6 +250,7 @@ const knownServices: KnownService[] = [
     matchNames: ["bookbeat"],
     category: "Medlemskap",
     plans: ["Basic", "Standard", "Premium", "Family"],
+    recommendedBillingPeriod: "monthly",
     note: "BookBeat känns igen. Kontrollera lyssningstid och om billigare nivå räcker.",
   },
   {
@@ -232,6 +258,7 @@ const knownServices: KnownService[] = [
     matchNames: ["nextory"],
     category: "Medlemskap",
     plans: ["Basic", "Unlimited", "Family"],
+    recommendedBillingPeriod: "monthly",
     note: "Nextory känns igen. Kontrollera om du använder tjänsten tillräckligt ofta.",
   },
   {
@@ -239,6 +266,7 @@ const knownServices: KnownService[] = [
     matchNames: ["readly"],
     category: "Medlemskap",
     plans: ["Standard", "Family"],
+    recommendedBillingPeriod: "monthly",
     note: "Readly känns igen. Kontrollera om du läser tillräckligt ofta för att medlemskapet ska löna sig.",
   },
   {
@@ -246,6 +274,7 @@ const knownServices: KnownService[] = [
     matchNames: ["duolingo"],
     category: "Medlemskap",
     plans: ["Super", "Family"],
+    recommendedBillingPeriod: "monthly",
     note: "Duolingo känns igen. Kontrollera om gratisversionen räcker eller om du använder premiumfunktionerna.",
   },
   {
@@ -253,6 +282,7 @@ const knownServices: KnownService[] = [
     matchNames: ["adobe", "creative cloud", "photoshop", "lightroom"],
     category: "Medlemskap",
     plans: ["Photography", "Single app", "Creative Cloud All Apps", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "Adobe känns igen. Adobe-abonnemang kan vara dyra, så kontrollera om rätt plan används.",
   },
   {
@@ -260,6 +290,7 @@ const knownServices: KnownService[] = [
     matchNames: ["canva"],
     category: "Medlemskap",
     plans: ["Pro", "Teams", "Education"],
+    recommendedBillingPeriod: "monthly",
     note: "Canva känns igen. Kontrollera om Pro-funktionerna används tillräckligt ofta.",
   },
   {
@@ -267,6 +298,7 @@ const knownServices: KnownService[] = [
     matchNames: ["xbox game pass", "game pass"],
     category: "Medlemskap",
     plans: ["Core", "Standard", "Ultimate", "PC"],
+    recommendedBillingPeriod: "monthly",
     note: "Xbox Game Pass känns igen. Kontrollera om du spelar tillräckligt ofta och om rätt nivå behövs.",
   },
   {
@@ -274,6 +306,7 @@ const knownServices: KnownService[] = [
     matchNames: ["playstation plus", "ps plus", "ps+"],
     category: "Medlemskap",
     plans: ["Essential", "Extra", "Premium"],
+    recommendedBillingPeriod: "yearly",
     note: "PlayStation Plus känns igen. Kontrollera om du använder spelen och onlineförmånerna.",
   },
   {
@@ -281,6 +314,7 @@ const knownServices: KnownService[] = [
     matchNames: ["nintendo switch online", "nintendo online"],
     category: "Medlemskap",
     plans: ["Individual", "Family", "Expansion Pack"],
+    recommendedBillingPeriod: "yearly",
     note: "Nintendo Switch Online känns igen. Kontrollera om familjeplan eller vanlig plan passar bäst.",
   },
   {
@@ -288,6 +322,7 @@ const knownServices: KnownService[] = [
     matchNames: ["friskis", "friskis & svettis", "friskis och svettis"],
     category: "Gym",
     plans: ["Gym", "Träning", "Allkort", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "Friskis & Svettis känns igen. Kontrollera om du använder gym, pass eller båda.",
   },
   {
@@ -295,6 +330,7 @@ const knownServices: KnownService[] = [
     matchNames: ["actic"],
     category: "Gym",
     plans: ["Basic", "Premium", "Student"],
+    recommendedBillingPeriod: "monthly",
     note: "Actic känns igen. Kontrollera om du använder medlemskapet tillräckligt ofta.",
   },
   {
@@ -302,6 +338,7 @@ const knownServices: KnownService[] = [
     matchNames: ["fello"],
     category: "Mobil",
     plans: ["Liten surf", "Mellan surf", "Stor surf"],
+    recommendedBillingPeriod: "monthly",
     note: "Fello känns igen. Kontrollera om surfmängden matchar din användning.",
   },
   {
@@ -309,6 +346,7 @@ const knownServices: KnownService[] = [
     matchNames: ["ikea family", "ikea"],
     category: "Medlemskap",
     plans: ["Gratis medlemskap"],
+    recommendedBillingPeriod: "monthly",
     note: "IKEA Family känns igen. Lägg in kostnaden som 0 kr om medlemskapet är gratis, men notera förmånerna.",
   },
   {
@@ -316,6 +354,7 @@ const knownServices: KnownService[] = [
     matchNames: ["stadium", "stadium member"],
     category: "Shopping",
     plans: ["Member", "Premium"],
+    recommendedBillingPeriod: "monthly",
     note: "Stadium känns igen. Kontrollera om rabatter eller bonusar används.",
   },
   {
@@ -323,6 +362,7 @@ const knownServices: KnownService[] = [
     matchNames: ["h&m", "hm", "hennes"],
     category: "Shopping",
     plans: ["Member", "Plus"],
+    recommendedBillingPeriod: "monthly",
     note: "H&M känns igen. Lägg in kostnaden som 0 kr om medlemskapet är gratis, men notera förmånerna.",
   },
   {
@@ -330,6 +370,7 @@ const knownServices: KnownService[] = [
     matchNames: ["ica", "ica stammis", "ica kort"],
     category: "Medlemskap",
     plans: ["Stammis", "Bankkort"],
+    recommendedBillingPeriod: "monthly",
     note: "ICA känns igen. Kontrollera bonus, rabatter och om kort/förmåner används.",
   },
   {
@@ -337,6 +378,7 @@ const knownServices: KnownService[] = [
     matchNames: ["coop"],
     category: "Medlemskap",
     plans: ["Medlem", "Mer"],
+    recommendedBillingPeriod: "monthly",
     note: "Coop känns igen. Kontrollera bonus, rabatter och medlemsförmåner.",
   },
   {
@@ -344,6 +386,7 @@ const knownServices: KnownService[] = [
     matchNames: ["willys", "willys plus"],
     category: "Medlemskap",
     plans: ["Plus"],
+    recommendedBillingPeriod: "monthly",
     note: "Willys Plus känns igen. Lägg in kostnaden som 0 kr om medlemskapet är gratis, men notera förmånerna.",
   },
   {
@@ -361,6 +404,7 @@ const knownServices: KnownService[] = [
     ],
     category: "Mobil",
     plans: ["Liten surf", "Mellan surf", "Fri surf", "Familj"],
+    recommendedBillingPeriod: "monthly",
     note: "Mobilabonnemang känns igen. Kontrollera om du betalar för mer surf än du använder.",
   },
   {
@@ -368,6 +412,7 @@ const knownServices: KnownService[] = [
     matchNames: ["bankkort", "kreditkort", "visa", "mastercard"],
     category: "Bankkort",
     plans: ["Standard", "Premium", "Platinum", "Kort med bonus"],
+    recommendedBillingPeriod: "yearly",
     note: "Kort känns igen. Kolla om reseförsäkring, köpskydd eller bonus ingår.",
   },
   {
@@ -380,7 +425,489 @@ const knownServices: KnownService[] = [
     ],
     category: "Försäkring",
     plans: ["Bas", "Mellan", "Stor", "Premium"],
+    recommendedBillingPeriod: "yearly",
     note: "Försäkring känns igen. Kontrollera villkor och om skyddet redan ingår någon annanstans.",
+  },
+
+  {
+    displayName: "Paramount+",
+    matchNames: ["paramount", "paramount+"],
+    category: "Streaming",
+    plans: ["Basic", "Standard", "Premium"],
+    recommendedBillingPeriod: "monthly",
+    note: "Paramount+ känns igen. Kontrollera om tjänsten används varje månad eller bara ibland.",
+  },
+  {
+    displayName: "MUBI",
+    matchNames: ["mubi"],
+    category: "Streaming",
+    plans: ["Standard", "Student"],
+    recommendedBillingPeriod: "monthly",
+    note: "MUBI känns igen. Kontrollera om du använder filmtjänsten tillräckligt ofta.",
+  },
+  {
+    displayName: "Hayu",
+    matchNames: ["hayu"],
+    category: "Streaming",
+    plans: ["Standard"],
+    recommendedBillingPeriod: "monthly",
+    note: "Hayu känns igen. Kontrollera om du fortfarande använder tjänsten varje månad.",
+  },
+  {
+    displayName: "BritBox",
+    matchNames: ["britbox"],
+    category: "Streaming",
+    plans: ["Standard"],
+    recommendedBillingPeriod: "monthly",
+    note: "BritBox känns igen. Kontrollera om tjänsten överlappar med andra streamingtjänster.",
+  },
+  {
+    displayName: "SF Anytime",
+    matchNames: ["sf anytime", "sfanytime"],
+    category: "Streaming",
+    plans: ["Hyrfilm", "Köpfilm"],
+    recommendedBillingPeriod: "monthly",
+    note: "SF Anytime känns igen. Kontrollera om kostnaden är återkommande eller en engångskostnad.",
+  },
+  {
+    displayName: "Rakuten TV",
+    matchNames: ["rakuten tv", "rakuten"],
+    category: "Streaming",
+    plans: ["Hyrfilm", "Köpfilm"],
+    recommendedBillingPeriod: "monthly",
+    note: "Rakuten TV känns igen. Kontrollera om kostnaden är återkommande eller en engångskostnad.",
+  },
+  {
+    displayName: "Twitch Turbo",
+    matchNames: ["twitch turbo", "twitch"],
+    category: "Streaming",
+    plans: ["Turbo"],
+    recommendedBillingPeriod: "monthly",
+    note: "Twitch Turbo känns igen. Kontrollera om reklamfritt tittande är värt kostnaden.",
+  },
+  {
+    displayName: "Tidal",
+    matchNames: ["tidal"],
+    category: "Streaming",
+    plans: ["Individual", "Family", "Student"],
+    recommendedBillingPeriod: "monthly",
+    note: "Tidal känns igen. Kontrollera om du betalar för flera musiktjänster.",
+  },
+  {
+    displayName: "Deezer",
+    matchNames: ["deezer"],
+    category: "Streaming",
+    plans: ["Premium", "Family", "Student"],
+    recommendedBillingPeriod: "monthly",
+    note: "Deezer känns igen. Kontrollera om du betalar dubbelt för musik.",
+  },
+  {
+    displayName: "SoundCloud Go",
+    matchNames: ["soundcloud", "soundcloud go"],
+    category: "Streaming",
+    plans: ["Go", "Go+"],
+    recommendedBillingPeriod: "monthly",
+    note: "SoundCloud känns igen. Kontrollera om premiumfunktionerna används.",
+  },
+  {
+    displayName: "Podimo",
+    matchNames: ["podimo"],
+    category: "Medlemskap",
+    plans: ["Premium"],
+    recommendedBillingPeriod: "monthly",
+    note: "Podimo känns igen. Kontrollera om du lyssnar tillräckligt ofta.",
+  },
+  {
+    displayName: "Audible",
+    matchNames: ["audible"],
+    category: "Medlemskap",
+    plans: ["Standard", "Premium Plus"],
+    recommendedBillingPeriod: "monthly",
+    note: "Audible känns igen. Kontrollera om du använder ljudböckerna varje månad.",
+  },
+  {
+    displayName: "Headspace",
+    matchNames: ["headspace"],
+    category: "Hälsa",
+    plans: ["Monthly", "Annual", "Family"],
+    recommendedBillingPeriod: "monthly",
+    note: "Headspace känns igen. Kontrollera om du använder appen tillräckligt ofta.",
+  },
+  {
+    displayName: "Calm",
+    matchNames: ["calm"],
+    category: "Hälsa",
+    plans: ["Premium", "Family"],
+    recommendedBillingPeriod: "monthly",
+    note: "Calm känns igen. Kontrollera om meditation eller sömnfunktionerna används.",
+  },
+  {
+    displayName: "Strava",
+    matchNames: ["strava"],
+    category: "Hälsa",
+    plans: ["Subscription", "Family"],
+    recommendedBillingPeriod: "yearly",
+    note: "Strava känns igen. Kontrollera om träningsfunktionerna används tillräckligt ofta.",
+  },
+  {
+    displayName: "Runkeeper",
+    matchNames: ["runkeeper", "asics runkeeper"],
+    category: "Hälsa",
+    plans: ["Go"],
+    recommendedBillingPeriod: "monthly",
+    note: "Runkeeper känns igen. Kontrollera om premiumfunktionerna används.",
+  },
+  {
+    displayName: "ChatGPT Plus",
+    matchNames: ["chatgpt", "chatgpt plus", "openai"],
+    category: "AI och verktyg",
+    plans: ["Plus", "Pro", "Team"],
+    recommendedBillingPeriod: "monthly",
+    note: "ChatGPT känns igen. Kontrollera om rätt nivå används och om någon annan AI-tjänst överlappar.",
+  },
+  {
+    displayName: "Claude Pro",
+    matchNames: ["claude", "claude pro", "anthropic"],
+    category: "AI och verktyg",
+    plans: ["Pro", "Max", "Team"],
+    recommendedBillingPeriod: "monthly",
+    note: "Claude känns igen. Kontrollera om du även betalar för andra AI-verktyg.",
+  },
+  {
+    displayName: "Perplexity Pro",
+    matchNames: ["perplexity", "perplexity pro"],
+    category: "AI och verktyg",
+    plans: ["Pro"],
+    recommendedBillingPeriod: "monthly",
+    note: "Perplexity känns igen. Kontrollera om sök- och AI-funktionerna används tillräckligt ofta.",
+  },
+  {
+    displayName: "GitHub Copilot",
+    matchNames: ["github copilot", "copilot"],
+    category: "AI och verktyg",
+    plans: ["Individual", "Business"],
+    recommendedBillingPeriod: "monthly",
+    note: "GitHub Copilot känns igen. Kontrollera om kodhjälpen används tillräckligt ofta.",
+  },
+  {
+    displayName: "Notion",
+    matchNames: ["notion"],
+    category: "AI och verktyg",
+    plans: ["Plus", "Business", "AI"],
+    recommendedBillingPeriod: "monthly",
+    note: "Notion känns igen. Kontrollera om du betalar för funktioner som faktiskt används.",
+  },
+  {
+    displayName: "Evernote",
+    matchNames: ["evernote"],
+    category: "AI och verktyg",
+    plans: ["Personal", "Professional"],
+    recommendedBillingPeriod: "monthly",
+    note: "Evernote känns igen. Kontrollera om appen fortfarande används eller överlappar med annat verktyg.",
+  },
+  {
+    displayName: "Todoist",
+    matchNames: ["todoist"],
+    category: "AI och verktyg",
+    plans: ["Pro", "Business"],
+    recommendedBillingPeriod: "monthly",
+    note: "Todoist känns igen. Kontrollera om Pro-funktionerna används.",
+  },
+  {
+    displayName: "1Password",
+    matchNames: ["1password", "onepassword"],
+    category: "AI och verktyg",
+    plans: ["Individual", "Families", "Teams"],
+    recommendedBillingPeriod: "monthly",
+    note: "1Password känns igen. Kontrollera om familjeplan eller individuell plan passar bäst.",
+  },
+  {
+    displayName: "NordVPN",
+    matchNames: ["nordvpn", "nord vpn"],
+    category: "AI och verktyg",
+    plans: ["Basic", "Plus", "Complete"],
+    recommendedBillingPeriod: "yearly",
+    note: "NordVPN känns igen. Kontrollera om du använder VPN-tjänsten tillräckligt ofta.",
+  },
+  {
+    displayName: "Surfshark",
+    matchNames: ["surfshark"],
+    category: "AI och verktyg",
+    plans: ["Starter", "One", "One+"],
+    recommendedBillingPeriod: "yearly",
+    note: "Surfshark känns igen. Kontrollera om VPN-tjänsten används och om årspriset är rätt inskrivet.",
+  },
+  {
+    displayName: "Proton VPN",
+    matchNames: ["proton vpn", "protonvpn", "proton"],
+    category: "AI och verktyg",
+    plans: ["VPN Plus", "Unlimited"],
+    recommendedBillingPeriod: "monthly",
+    note: "Proton VPN känns igen. Kontrollera om VPN eller hela Proton-paketet används.",
+  },
+  {
+    displayName: "LinkedIn Premium",
+    matchNames: ["linkedin premium", "linkedin"],
+    category: "Utbildning",
+    plans: ["Career", "Business", "Sales Navigator"],
+    recommendedBillingPeriod: "monthly",
+    note: "LinkedIn Premium känns igen. Kontrollera om premiumfunktionerna faktiskt används.",
+  },
+  {
+    displayName: "Coursera",
+    matchNames: ["coursera", "coursera plus"],
+    category: "Utbildning",
+    plans: ["Plus", "Course", "Specialization"],
+    recommendedBillingPeriod: "monthly",
+    note: "Coursera känns igen. Kontrollera om kursen fortfarande används eller kan pausas.",
+  },
+  {
+    displayName: "Skillshare",
+    matchNames: ["skillshare"],
+    category: "Utbildning",
+    plans: ["Premium", "Teams"],
+    recommendedBillingPeriod: "yearly",
+    note: "Skillshare känns igen. Kontrollera om årspriset och användningen stämmer.",
+  },
+  {
+    displayName: "MasterClass",
+    matchNames: ["masterclass"],
+    category: "Utbildning",
+    plans: ["Individual", "Duo", "Family"],
+    recommendedBillingPeriod: "yearly",
+    note: "MasterClass känns igen. Kontrollera om årspriset är värt användningen.",
+  },
+  {
+    displayName: "Babbel",
+    matchNames: ["babbel"],
+    category: "Utbildning",
+    plans: ["Standard", "Lifetime"],
+    recommendedBillingPeriod: "monthly",
+    note: "Babbel känns igen. Kontrollera om språkträningen används regelbundet.",
+  },
+  {
+    displayName: "Memrise",
+    matchNames: ["memrise"],
+    category: "Utbildning",
+    plans: ["Premium"],
+    recommendedBillingPeriod: "monthly",
+    note: "Memrise känns igen. Kontrollera om premiumfunktionerna används.",
+  },
+  {
+    displayName: "EA Play",
+    matchNames: ["ea play", "electronic arts"],
+    category: "Spel",
+    plans: ["EA Play", "EA Play Pro"],
+    recommendedBillingPeriod: "monthly",
+    note: "EA Play känns igen. Kontrollera om spelen används tillräckligt ofta.",
+  },
+  {
+    displayName: "Ubisoft+",
+    matchNames: ["ubisoft", "ubisoft+"],
+    category: "Spel",
+    plans: ["Classics", "Premium"],
+    recommendedBillingPeriod: "monthly",
+    note: "Ubisoft+ känns igen. Kontrollera om spelbiblioteket används varje månad.",
+  },
+  {
+    displayName: "GeForce NOW",
+    matchNames: ["geforce now", "nvidia geforce now"],
+    category: "Spel",
+    plans: ["Free", "Priority", "Ultimate"],
+    recommendedBillingPeriod: "monthly",
+    note: "GeForce NOW känns igen. Kontrollera om molnspelandet används tillräckligt ofta.",
+  },
+  {
+    displayName: "Apple Arcade",
+    matchNames: ["apple arcade"],
+    category: "Spel",
+    plans: ["Standard", "Apple One"],
+    recommendedBillingPeriod: "monthly",
+    note: "Apple Arcade känns igen. Kontrollera om tjänsten ingår i Apple One.",
+  },
+  {
+    displayName: "Google Play Pass",
+    matchNames: ["google play pass", "play pass"],
+    category: "Spel",
+    plans: ["Individual", "Family"],
+    recommendedBillingPeriod: "monthly",
+    note: "Google Play Pass känns igen. Kontrollera om spel och appar används tillräckligt ofta.",
+  },
+  {
+    displayName: "Discord Nitro",
+    matchNames: ["discord nitro", "discord"],
+    category: "Spel",
+    plans: ["Basic", "Nitro"],
+    recommendedBillingPeriod: "monthly",
+    note: "Discord Nitro känns igen. Kontrollera om premiumfunktionerna används.",
+  },
+  {
+    displayName: "Roblox Premium",
+    matchNames: ["roblox premium", "roblox"],
+    category: "Spel",
+    plans: ["450 Robux", "1000 Robux", "2200 Robux"],
+    recommendedBillingPeriod: "monthly",
+    note: "Roblox Premium känns igen. Kontrollera om medlemskapet används och om köpen är rimliga.",
+  },
+  {
+    displayName: "Dagens Nyheter",
+    matchNames: ["dagens nyheter", "dn"],
+    category: "Nyheter",
+    plans: ["Digital", "Helg", "Allt"],
+    recommendedBillingPeriod: "monthly",
+    note: "DN känns igen. Kontrollera om nyhetsabonnemanget används tillräckligt ofta.",
+  },
+  {
+    displayName: "Svenska Dagbladet",
+    matchNames: ["svenska dagbladet", "svd"],
+    category: "Nyheter",
+    plans: ["Digital", "Premium"],
+    recommendedBillingPeriod: "monthly",
+    note: "Svenska Dagbladet känns igen. Kontrollera om du använder abonnemanget regelbundet.",
+  },
+  {
+    displayName: "Aftonbladet Plus",
+    matchNames: ["aftonbladet plus", "aftonbladet"],
+    category: "Nyheter",
+    plans: ["Plus"],
+    recommendedBillingPeriod: "monthly",
+    note: "Aftonbladet Plus känns igen. Kontrollera om plusinnehållet används.",
+  },
+  {
+    displayName: "Expressen Premium",
+    matchNames: ["expressen premium", "expressen"],
+    category: "Nyheter",
+    plans: ["Premium"],
+    recommendedBillingPeriod: "monthly",
+    note: "Expressen Premium känns igen. Kontrollera om premiuminnehållet används.",
+  },
+  {
+    displayName: "The Economist",
+    matchNames: ["the economist", "economist"],
+    category: "Nyheter",
+    plans: ["Digital", "Print + Digital"],
+    recommendedBillingPeriod: "yearly",
+    note: "The Economist känns igen. Kontrollera om årspriset och användningen stämmer.",
+  },
+  {
+    displayName: "Financial Times",
+    matchNames: ["financial times", "ft.com", "ft"],
+    category: "Nyheter",
+    plans: ["Digital", "Premium"],
+    recommendedBillingPeriod: "monthly",
+    note: "Financial Times känns igen. Kontrollera om premiumpriset är värt användningen.",
+  },
+  {
+    displayName: "HelloFresh",
+    matchNames: ["hellofresh", "hello fresh"],
+    category: "Mat och leverans",
+    plans: ["Matkasse", "Familj", "Vegetarisk"],
+    recommendedBillingPeriod: "monthly",
+    note: "HelloFresh känns igen. Kontrollera om kostnaden är återkommande och hur ofta matkassen används.",
+  },
+  {
+    displayName: "Linas Matkasse",
+    matchNames: ["linas matkasse", "lina matkasse"],
+    category: "Mat och leverans",
+    plans: ["Original", "Familj", "Vegetarisk"],
+    recommendedBillingPeriod: "monthly",
+    note: "Linas Matkasse känns igen. Kontrollera om leveranserna fortfarande passar behovet.",
+  },
+  {
+    displayName: "Mathem",
+    matchNames: ["mathem"],
+    category: "Mat och leverans",
+    plans: ["Medlemskap", "Leverans"],
+    recommendedBillingPeriod: "monthly",
+    note: "Mathem känns igen. Kontrollera om kostnaden är medlemskap, leveransavgift eller matköp.",
+  },
+  {
+    displayName: "Uber One",
+    matchNames: ["uber one", "uber"],
+    category: "Mat och leverans",
+    plans: ["One"],
+    recommendedBillingPeriod: "monthly",
+    note: "Uber One känns igen. Kontrollera om medlemskapet lönar sig jämfört med hur ofta du beställer.",
+  },
+  {
+    displayName: "Klarna Plus",
+    matchNames: ["klarna plus", "klarna"],
+    category: "Shopping",
+    plans: ["Plus"],
+    recommendedBillingPeriod: "monthly",
+    note: "Klarna Plus känns igen. Kontrollera om förmånerna används tillräckligt ofta.",
+  },
+  {
+    displayName: "SJ Prio",
+    matchNames: ["sj prio", "sj"],
+    category: "Medlemskap",
+    plans: ["Medlem"],
+    recommendedBillingPeriod: "monthly",
+    note: "SJ Prio känns igen. Lägg in 0 kr om medlemskapet är gratis, men notera reseförmånerna.",
+  },
+  {
+    displayName: "SL",
+    matchNames: ["sl", "stockholms lokaltrafik", "sl kort"],
+    category: "Transport",
+    plans: ["30 dagar", "90 dagar", "Årskort", "Student"],
+    recommendedBillingPeriod: "monthly",
+    note: "SL känns igen. Kontrollera om det är månadskort, årskort eller en enskild biljett.",
+  },
+  {
+    displayName: "EasyPark",
+    matchNames: ["easypark", "easy park"],
+    category: "Transport",
+    plans: ["Go", "Plus", "Business"],
+    recommendedBillingPeriod: "monthly",
+    note: "EasyPark känns igen. Kontrollera om kostnaden är abonnemang, serviceavgift eller parkering.",
+  },
+  {
+    displayName: "Voi",
+    matchNames: ["voi"],
+    category: "Transport",
+    plans: ["Pass", "Monthly", "Pay as you go"],
+    recommendedBillingPeriod: "monthly",
+    note: "Voi känns igen. Kontrollera om det är pass, abonnemang eller enskilda resor.",
+  },
+  {
+    displayName: "Bolt",
+    matchNames: ["bolt"],
+    category: "Transport",
+    plans: ["Ride", "Food", "Pass"],
+    recommendedBillingPeriod: "monthly",
+    note: "Bolt känns igen. Kontrollera om kostnaden gäller resor, matleverans eller pass.",
+  },
+  {
+    displayName: "KICKS Club",
+    matchNames: ["kicks club", "kicks"],
+    category: "Shopping",
+    plans: ["Club", "VIP"],
+    recommendedBillingPeriod: "monthly",
+    note: "KICKS Club känns igen. Lägg in 0 kr om medlemskapet är gratis, men notera rabatter och bonus.",
+  },
+  {
+    displayName: "Åhléns",
+    matchNames: ["åhlens", "ahlens"],
+    category: "Shopping",
+    plans: ["Medlem", "Klubb"],
+    recommendedBillingPeriod: "monthly",
+    note: "Åhléns medlemskap känns igen. Lägg in 0 kr om det är gratis och notera förmånerna.",
+  },
+  {
+    displayName: "Apotek Hjärtat",
+    matchNames: ["apotek hjärtat", "apotek hjartat"],
+    category: "Shopping",
+    plans: ["Klubb Hjärtat"],
+    recommendedBillingPeriod: "monthly",
+    note: "Apotek Hjärtat känns igen. Lägg in 0 kr om medlemskapet är gratis, men notera rabatter och bonus.",
+  },
+  {
+    displayName: "Lyko",
+    matchNames: ["lyko"],
+    category: "Shopping",
+    plans: ["Lyko Social", "Medlem"],
+    recommendedBillingPeriod: "monthly",
+    note: "Lyko känns igen. Lägg in 0 kr om medlemskapet är gratis, men notera förmånerna.",
   },
 ];
 
@@ -467,6 +994,14 @@ function getBillingPeriodLabel(period?: BillingPeriod) {
   return "per månad";
 }
 
+function getBillingPeriodSuggestionLabel(period?: BillingPeriod) {
+  if (period === "yearly") {
+    return "Betalas ofta per år";
+  }
+
+  return "Betalas oftast per månad";
+}
+
 function getBrowserDefaultSettings(): AppSettings {
   if (typeof navigator === "undefined") {
     return { language: "sv", currency: "SEK" };
@@ -523,6 +1058,7 @@ export default function Home() {
   const [usage, setUsage] = useState("Ofta");
   const [plan, setPlan] = useState("");
   const [showServiceSuggestions, setShowServiceSuggestions] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -620,6 +1156,16 @@ export default function Home() {
     setEditingId(null);
   }
 
+  function focusNameField() {
+    window.setTimeout(() => {
+      nameInputRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      nameInputRef.current?.focus();
+    }, 50);
+  }
+
   function handleNameChange(value: string) {
     setName(value);
 
@@ -627,12 +1173,14 @@ export default function Home() {
 
     if (service) {
       setCategory(service.category);
+      setBillingPeriod(service.recommendedBillingPeriod ?? "monthly");
     }
   }
 
   function handleChooseSuggestedService(service: KnownService) {
     setName(service.displayName);
     setCategory(service.category);
+    setBillingPeriod(service.recommendedBillingPeriod ?? "monthly");
     setPlan("");
     setShowServiceSuggestions(false);
   }
@@ -642,10 +1190,13 @@ export default function Home() {
   ) {
     event.preventDefault();
 
+    const submitter = event.nativeEvent.submitter as HTMLButtonElement | null;
+    const shouldAddAnother = submitter?.value === "addAnother";
+
     const priceAsNumber = Number(price);
 
-    if (!name || !price || priceAsNumber <= 0) {
-      alert("Fyll i namn och ett pris som är större än 0.");
+    if (!name || price === "" || priceAsNumber < 0) {
+      alert("Fyll i namn och ett pris som är 0 eller större.");
       return;
     }
 
@@ -692,7 +1243,11 @@ export default function Home() {
     setSubscriptions([newSubscription, ...subscriptions]);
 
     resetForm();
-    setShowForm(false);
+    setShowForm(shouldAddAnother);
+
+    if (shouldAddAnother) {
+      focusNameField();
+    }
   }
 
   function handleDeleteSubscription(id: number) {
@@ -956,6 +1511,7 @@ export default function Home() {
                 <FormField label="Namn">
                   <div className="relative">
                     <input
+                      ref={nameInputRef}
                       value={name}
                       onChange={(event) => {
                         handleNameChange(event.target.value);
@@ -994,6 +1550,7 @@ export default function Home() {
                         onChange={(event) => setPrice(event.target.value)}
                         placeholder="Exempel: 179"
                         type="number"
+                        min="0"
                         className={inputClassName}
                       />
                     </FormField>
@@ -1022,8 +1579,15 @@ export default function Home() {
                   <div className="md:col-span-2">
                     <RecognizedServiceBox
                       service={recognizedService}
+                      selectedPlan={plan}
+                      onPlanChange={setPlan}
                       onUseCategory={() =>
                         setCategory(recognizedService.category)
+                      }
+                      onUseBillingPeriod={() =>
+                        setBillingPeriod(
+                          recognizedService.recommendedBillingPeriod ?? "monthly"
+                        )
                       }
                       onChoosePlan={(selectedPlan) => setPlan(selectedPlan)}
                     />
@@ -1045,6 +1609,12 @@ export default function Home() {
                     <option>Medlemskap</option>
                     <option>Mat och leverans</option>
                     <option>Shopping</option>
+                    <option>Transport</option>
+                    <option>Nyheter</option>
+                    <option>Spel</option>
+                    <option>Utbildning</option>
+                    <option>Hälsa</option>
+                    <option>AI och verktyg</option>
                     <option>Annat</option>
                   </select>
                 </FormField>
@@ -1061,31 +1631,43 @@ export default function Home() {
                   </select>
                 </FormField>
 
-                <div className="md:col-span-2">
-                  <FormField label="Plan / nivå">
-                    <input
-                      value={plan}
-                      onChange={(event) => setPlan(event.target.value)}
-                      placeholder="Exempel: Basic, Standard, Premium, Family, Student"
-                      className={inputClassName}
-                    />
-                  </FormField>
-                  <p className="mt-1 text-xs text-slate-500">
-                    Valfritt. Appen kan föreslå vanliga planer, men du skriver
-                    själv vad du faktiskt betalar.
-                  </p>
-                </div>
+                {!recognizedService && (
+                  <div className="md:col-span-2">
+                    <FormField label="Plan / nivå">
+                      <input
+                        value={plan}
+                        onChange={(event) => setPlan(event.target.value)}
+                        placeholder="Exempel: Basic, Standard, Premium, Family, Student"
+                        className={inputClassName}
+                      />
+                    </FormField>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Valfritt. Skriv plan om du vet den, annars kan du lämna tomt.
+                    </p>
+                  </div>
+                )}
               </div>
 
-              <div className="mt-6 flex gap-3">
+              <div className="mt-6 flex flex-wrap gap-3">
                 <button
                   type="submit"
+                  value="save"
                   className="rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"
                 >
                   {editingId !== null
                     ? "Spara ändringar"
                     : "Spara abonnemang"}
                 </button>
+
+                {editingId === null && (
+                  <button
+                    type="submit"
+                    value="addAnother"
+                    className="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-sm font-bold text-emerald-800 hover:bg-emerald-100"
+                  >
+                    Spara och lägg till en till
+                  </button>
+                )}
 
                 {editingId !== null && (
                   <button
@@ -1217,12 +1799,13 @@ function hasName(subscription: Subscription, words: string[]) {
   return words.some((word) => normalizedName.includes(word));
 }
 
-type PriceSanityLevel = "unusual" | "extreme";
+type PriceSanityLevel = "low" | "unusual" | "extreme";
 
 type PriceSanity = {
   level: PriceSanityLevel;
-  unusualLimit: number;
-  extremeLimit: number;
+  unusualLimit?: number;
+  extremeLimit?: number;
+  lowLimit?: number;
   categoryLabel: string;
 };
 
@@ -1293,12 +1876,78 @@ function getPriceLimitsForCategory(category: string) {
     return makeLimit(1000, 2000, "shopping");
   }
 
-  return makeLimit(1000, 2000, "den här kategorin");
+  return makeLimit(1000, 2000, "den här typen av tjänst");
+}
+
+function getLowPriceLimitForKnownPaidService(subscription: Subscription) {
+  const service = findKnownService(subscription.name);
+
+  if (!service) {
+    return null;
+  }
+
+  const servicesThatCanBeFree = [
+    "IKEA Family",
+    "H&M",
+    "ICA",
+    "Coop",
+    "Willys Plus",
+    "Stadium",
+    "SJ Prio",
+    "KICKS Club",
+    "Åhléns",
+    "Apotek Hjärtat",
+    "Lyko",
+  ];
+
+  if (servicesThatCanBeFree.includes(service.displayName)) {
+    return null;
+  }
+
+  const categoriesThatUsuallyCostMoney = [
+    "Streaming",
+    "Molnlagring",
+    "Gym",
+    "Mobil",
+    "Mat och leverans",
+    "Medlemskap",
+    "Transport",
+    "Nyheter",
+    "Spel",
+    "Utbildning",
+    "Hälsa",
+    "AI och verktyg",
+  ];
+
+  if (!categoriesThatUsuallyCostMoney.includes(service.category)) {
+    return null;
+  }
+
+  return Math.round(20 * getCurrencyMultiplier());
 }
 
 function getPriceSanity(subscription: Subscription): PriceSanity | null {
   const limits = getPriceLimitsForCategory(subscription.category);
   const monthlyPrice = getMonthlyPrice(subscription);
+  const lowPriceLimit = getLowPriceLimitForKnownPaidService(subscription);
+  const globalExtremeLimit = Math.round(10000 * getCurrencyMultiplier());
+
+  if (lowPriceLimit !== null && monthlyPrice < lowPriceLimit) {
+    return {
+      level: "low",
+      lowLimit: lowPriceLimit,
+      categoryLabel: "känd betaltjänst",
+    };
+  }
+
+  if (monthlyPrice >= globalExtremeLimit) {
+    return {
+      level: "extreme",
+      unusualLimit: limits.unusual,
+      extremeLimit: globalExtremeLimit,
+      categoryLabel: "den här typen av tjänst",
+    };
+  }
 
   if (monthlyPrice >= limits.extreme) {
     return {
@@ -1322,18 +1971,36 @@ function getPriceSanity(subscription: Subscription): PriceSanity | null {
 }
 
 function getHighestPriceWarning(subscriptions: Subscription[]) {
+  function getWarningPriority(sanity: PriceSanity | null) {
+    if (sanity?.level === "extreme") {
+      return 3;
+    }
+
+    if (sanity?.level === "unusual") {
+      return 2;
+    }
+
+    if (sanity?.level === "low") {
+      return 1;
+    }
+
+    return 0;
+  }
+
   return [...subscriptions]
     .filter((item) => getPriceSanity(item) !== null)
     .sort((a, b) => {
       const aSanity = getPriceSanity(a);
       const bSanity = getPriceSanity(b);
+      const priorityDifference =
+        getWarningPriority(bSanity) - getWarningPriority(aSanity);
 
-      if (aSanity?.level === "extreme" && bSanity?.level !== "extreme") {
-        return -1;
+      if (priorityDifference !== 0) {
+        return priorityDifference;
       }
 
-      if (bSanity?.level === "extreme" && aSanity?.level !== "extreme") {
-        return 1;
+      if (aSanity?.level === "low" && bSanity?.level === "low") {
+        return getMonthlyPrice(a) - getMonthlyPrice(b);
       }
 
       return getMonthlyPrice(b) - getMonthlyPrice(a);
@@ -1434,13 +2101,22 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
     const sanity = getPriceSanity(priceWarning);
 
     if (sanity) {
+      if (sanity.level === "low") {
+        return {
+          title: `Kontrollera priset på ${priceWarning.name}`,
+          text: `${priceWarning.name} kostar ${formatCurrency(
+            getMonthlyPrice(priceWarning)
+          )}/mån, vilket verkar ovanligt lågt för en känd betaltjänst. Kontrollera om priset är rätt inskrivet, om det är kampanjpris, delad kostnad, provperiod eller om något saknas.`,
+        };
+      }
+
       return {
         title: `Kontrollera priset på ${priceWarning.name}`,
         text: `${priceWarning.name} kostar ${formatCurrency(
           getMonthlyPrice(priceWarning)
         )}/mån, vilket verkar ${
           sanity.level === "extreme" ? "extremt högt" : "ovanligt högt"
-        } för ${sanity.categoryLabel}. Kontrollera om priset är rätt inskrivet, om det gäller per år eller om en billigare plan/ett billigare alternativ räcker.`,
+        } för ${sanity.categoryLabel}. Det kan vara rimligt om förmånerna är mycket värdefulla, men kontrollera priset, betalperioden och vad som ingår.`,
       };
     }
   }
@@ -1559,12 +2235,22 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
 function getValueAssessment(subscription: Subscription) {
   const priceSanity = getPriceSanity(subscription);
 
+  if (priceSanity?.level === "low") {
+    return {
+      label: "Ovanligt lågt pris",
+      description: `${formatCurrency(
+        getMonthlyPrice(subscription)
+      )}/mån verkar ovanligt lågt för en känd betaltjänst.`,
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+    };
+  }
+
   if (priceSanity?.level === "extreme") {
     return {
       label: "Extremt hög kostnad",
       description: `${formatCurrency(
         getMonthlyPrice(subscription)
-      )}/mån verkar extremt högt för ${priceSanity.categoryLabel}.`,
+      )}/mån verkar extremt högt. Det kan vara rimligt om förmånerna är mycket värdefulla.`,
       className: "border-red-200 bg-red-50 text-red-800",
     };
   }
@@ -1631,8 +2317,12 @@ function getValueAssessment(subscription: Subscription) {
 function getRecommendedAction(subscription: Subscription) {
   const priceSanity = getPriceSanity(subscription);
 
+  if (priceSanity?.level === "low") {
+    return "Kontrollera om priset stämmer, om det är kampanj, delad kostnad eller provperiod.";
+  }
+
   if (priceSanity) {
-    return "Kontrollera priset, år/månad och om billigare plan eller alternativ räcker.";
+    return "Kontrollera priset, år/månad och vad som ingår. Det kan vara rimligt om förmånerna är mycket värdefulla.";
   }
 
   if (subscription.usage === "Sällan" && getMonthlyPrice(subscription) >= 150) {
@@ -1668,6 +2358,12 @@ function getRecommendedAction(subscription: Subscription) {
 
 function getRecommendationReason(subscription: Subscription) {
   const priceSanity = getPriceSanity(subscription);
+
+  if (priceSanity?.level === "low") {
+    return `${formatCurrency(
+      getMonthlyPrice(subscription)
+    )}/mån verkar ovanligt lågt för en känd betaltjänst.`;
+  }
 
   if (priceSanity) {
     return `${formatCurrency(getMonthlyPrice(subscription))}/mån verkar ${
@@ -2150,6 +2846,8 @@ function DetectiveReport({
   priceWarnings: Subscription[];
   bestNextAction: Insight | null;
 }) {
+  const [showNextActionDetails, setShowNextActionDetails] = useState(false);
+
   if (subscriptions.length === 0) {
     return (
       <section className="rounded-3xl border border-dashed border-slate-300 bg-white p-6 shadow-sm">
@@ -2188,20 +2886,37 @@ function DetectiveReport({
 
       {bestNextAction && (
         <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-          <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
-            Nästa bästa åtgärd
-          </p>
-          <h3 className="mt-1 font-black text-emerald-950">
-            {bestNextAction.title}
-          </h3>
-          <p className="mt-1 text-sm font-medium text-emerald-900">
-            {bestNextAction.text}
-          </p>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
+                Nästa bästa åtgärd
+              </p>
+              <h3 className="mt-1 font-black text-emerald-950">
+                {bestNextAction.title}
+              </h3>
+            </div>
 
-          {focusSubscription && (
-            <div className="mt-3 rounded-2xl bg-white/80 p-3 text-sm font-bold text-emerald-950">
-              {formatCurrency(getMonthlyPrice(focusSubscription))}/mån kan motsvara{" "}
-              {formatCurrency(getYearlyPrice(focusSubscription))} per år.
+            <button
+              type="button"
+              onClick={() => setShowNextActionDetails(!showNextActionDetails)}
+              className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-black text-emerald-800 hover:bg-emerald-100"
+            >
+              {showNextActionDetails ? "Dölj ▲" : "Visa detaljer ▼"}
+            </button>
+          </div>
+
+          {showNextActionDetails && (
+            <div className="mt-3">
+              <p className="text-sm font-medium text-emerald-900">
+                {bestNextAction.text}
+              </p>
+
+              {focusSubscription && (
+                <div className="mt-3 rounded-2xl bg-white/80 p-3 text-sm font-bold text-emerald-950">
+                  {formatCurrency(getMonthlyPrice(focusSubscription))}/mån kan motsvara{" "}
+                  {formatCurrency(getYearlyPrice(focusSubscription))} per år.
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -2712,11 +3427,17 @@ function ServiceSuggestionDropdown({
 
 function RecognizedServiceBox({
   service,
+  selectedPlan,
+  onPlanChange,
   onUseCategory,
+  onUseBillingPeriod,
   onChoosePlan,
 }: {
   service: KnownService;
+  selectedPlan: string;
+  onPlanChange: (plan: string) => void;
   onUseCategory: () => void;
+  onUseBillingPeriod: () => void;
   onChoosePlan: (plan: string) => void;
 }) {
   return (
@@ -2752,22 +3473,41 @@ function RecognizedServiceBox({
                 </button>
               ))}
             </div>
+
+            <div className="mt-4 max-w-xl">
+              <FormField label="Vald plan / nivå">
+                <input
+                  value={selectedPlan}
+                  onChange={(event) => onPlanChange(event.target.value)}
+                  placeholder="Välj ovan eller skriv själv"
+                  className={inputClassName}
+                />
+              </FormField>
+            </div>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onUseCategory}
-          className="rounded-2xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800"
-        >
-          Använd kategori: {service.category}
-        </button>
+        <div className="flex shrink-0 flex-col gap-2">
+          <button
+            type="button"
+            onClick={onUseCategory}
+            className="rounded-2xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800"
+          >
+            Använd kategori: {service.category}
+          </button>
+
+          <button
+            type="button"
+            onClick={onUseBillingPeriod}
+            className="rounded-2xl border border-emerald-200 bg-white px-4 py-2 text-sm font-bold text-emerald-800 hover:bg-emerald-100"
+          >
+            {getBillingPeriodSuggestionLabel(service.recommendedBillingPeriod)}
+          </button>
+        </div>
       </div>
 
       <p className="mt-4 rounded-2xl bg-white px-4 py-3 text-xs font-semibold text-slate-600">
-        Gratisversionen gissar inte priset. Välj gärna plan här, men skriv
-        själv in den faktiska kostnaden från kontoutdrag, mejl eller
-        abonnemangssidan. Automatisk prisupptäckt hör hemma i Premium.
+        Appen föreslår vanliga val, men priset skriver du själv.
       </p>
     </div>
   );
