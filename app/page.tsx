@@ -2224,6 +2224,17 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
         };
       }
 
+      if (priceWarning.usage === "Sällan" && getMonthlyPrice(priceWarning) >= 150) {
+        return {
+          title: `Börja med ${priceWarning.name}`,
+          text: `${priceWarning.name} kostar ${formatCurrency(
+            getMonthlyPrice(priceWarning)
+          )}/mån, används sällan och verkar ${
+            sanity.level === "extreme" ? "extremt dyrt" : "dyrt"
+          } för ${sanity.categoryLabel}. Pausa, byt plan eller säg upp om du inte använder premiuminnehållet.`,
+        };
+      }
+
       return {
         title: `Kontrollera priset på ${priceWarning.name}`,
         text: `${priceWarning.name} kostar ${formatCurrency(
@@ -2367,6 +2378,23 @@ function getValueAssessment(subscription: Subscription) {
     };
   }
 
+  if (
+    priceSanity &&
+    priceSanity.level !== "low" &&
+    subscription.usage === "Sällan" &&
+    getMonthlyPrice(subscription) >= 150
+  ) {
+    return {
+      label: "Dyrt för låg användning",
+      description: `${formatCurrency(
+        getMonthlyPrice(subscription)
+      )}/mån, används sällan och verkar ${
+        priceSanity.level === "extreme" ? "extremt högt" : "högt"
+      } för ${priceSanity.categoryLabel}.`,
+      className: "border-red-200 bg-red-50 text-red-800",
+    };
+  }
+
   if (priceSanity?.level === "extreme") {
     return {
       label: "Extremt hög kostnad",
@@ -2457,6 +2485,14 @@ function getRecommendedAction(subscription: Subscription) {
     return "Kontrollera om priset stämmer, om det är kampanj, delad kostnad eller provperiod.";
   }
 
+  if (
+    priceSanity &&
+    subscription.usage === "Sällan" &&
+    getMonthlyPrice(subscription) >= 150
+  ) {
+    return "Pausa, byt plan eller säg upp om du inte använder premiuminnehållet.";
+  }
+
   if (priceSanity) {
     return "Kontrollera priset, år/månad och vad som ingår. Det kan vara rimligt om förmånerna är mycket värdefulla.";
   }
@@ -2509,6 +2545,18 @@ function getRecommendationReason(subscription: Subscription) {
     return `${formatCurrency(
       getMonthlyPrice(subscription)
     )}/mån verkar ovanligt lågt för en känd betaltjänst.`;
+  }
+
+  if (
+    priceSanity &&
+    subscription.usage === "Sällan" &&
+    getMonthlyPrice(subscription) >= 150
+  ) {
+    return `${formatCurrency(
+      getMonthlyPrice(subscription)
+    )}/mån, används sällan och verkar ${
+      priceSanity.level === "extreme" ? "extremt högt" : "ovanligt högt"
+    } för ${priceSanity.categoryLabel}.`;
   }
 
   if (priceSanity) {
