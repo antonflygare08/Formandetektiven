@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabaseClient";
 type BillingPeriod = "monthly" | "yearly";
 
 type Subscription = {
-  id: number;
+  id: string;
   name: string;
   category: string;
   price: number;
@@ -921,7 +921,7 @@ const knownServices: KnownService[] = [
 
 const initialSubscriptions: Subscription[] = [
   {
-    id: 1,
+    id: "demo-1",
     name: "Spotify Premium",
     category: "Streaming",
     price: 119,
@@ -931,11 +931,11 @@ const initialSubscriptions: Subscription[] = [
     benefits: getBenefitsForSubscription(
       "Spotify Premium",
       "Streaming",
-      "Premium"
+      "Premium",
     ),
   },
   {
-    id: 2,
+    id: "demo-2",
     name: "Microsoft 365",
     category: "Molnlagring",
     price: 99,
@@ -945,11 +945,11 @@ const initialSubscriptions: Subscription[] = [
     benefits: getBenefitsForSubscription(
       "Microsoft 365",
       "Molnlagring",
-      "Family"
+      "Family",
     ),
   },
   {
-    id: 3,
+    id: "demo-3",
     name: "Google One",
     category: "Molnlagring",
     price: 25,
@@ -959,7 +959,7 @@ const initialSubscriptions: Subscription[] = [
     benefits: getBenefitsForSubscription("Google One", "Molnlagring", ""),
   },
   {
-    id: 4,
+    id: "demo-4",
     name: "Nordic Wellness",
     category: "Gym",
     price: 399,
@@ -1048,6 +1048,35 @@ function formatCheckCount(count: number) {
   return `${count} ${count === 1 ? "sak" : "saker"} att kontrollera`;
 }
 
+type SupabaseSubscriptionRow = {
+  id: string;
+  name: string;
+  category: string;
+  price: number | string;
+  billing_period: string;
+  usage: string;
+  plan: string | null;
+  price_confirmed: boolean;
+};
+
+function mapDbSubscription(row: SupabaseSubscriptionRow): Subscription {
+  const billingPeriod: BillingPeriod =
+    row.billing_period === "yearly" ? "yearly" : "monthly";
+  const plan = row.plan ?? "";
+
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    price: Number(row.price),
+    billingPeriod,
+    usage: row.usage,
+    plan,
+    priceConfirmed: row.price_confirmed,
+    benefits: getBenefitsForSubscription(row.name, row.category, plan),
+  };
+}
+
 export default function Home() {
   const [subscriptions, setSubscriptions] =
     useState<Subscription[]>(initialSubscriptions);
@@ -1060,6 +1089,8 @@ export default function Home() {
   const [currency, setCurrency] = useState<CurrencyCode>("SEK");
   const [catalogServices, setCatalogServices] =
     useState<KnownService[]>(knownServices);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [isSavingSubscription, setIsSavingSubscription] = useState(false);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Streaming");
@@ -1070,7 +1101,7 @@ export default function Home() {
   const [showServiceSuggestions, setShowServiceSuggestions] = useState(false);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const recognizedService = findKnownService(name, catalogServices);
   const suggestedServices = getSuggestedServices(name, catalogServices);
@@ -1079,27 +1110,77 @@ export default function Home() {
   activeLocale = currencyLocales[currency];
 
   useEffect(() => {
-    const savedSubscriptions = localStorage.getItem("subscriptions");
-    const savedGuideChoice = localStorage.getItem("hasSkippedGuide");
-    const savedSettings = localStorage.getItem("appSettings");
-    const browserDefaults = getBrowserDefaultSettings();
+    async function loadUserAndSubscriptions() {
+      const savedGuideChoice = localStorage.getItem("hasSkippedGuide");
+      const savedSettings = localStorage.getItem("appSettings");
+      const browserDefaults = getBrowserDefaultSettings();
 
-    if (savedSubscriptions) {
-      setSubscriptions(JSON.parse(savedSubscriptions));
+      if (savedGuideChoice === "true") {
+        setHasSkippedGuide(true);
+      }
+
+      if (savedSettings) {
+        const parsedSettings = JSON.parse(savedSettings) as AppSettings;
+        setCurrency(parsedSettings.currency ?? browserDefaults.currency);
+      } else {
+        setCurrency(browserDefaults.currency);
+      }
+
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        let currentUserId = sessionData.session?.user.id ?? null;
+
+        if (!currentUserId) {
+          const { data: signInData, error: signInError } =
+            await supabase.auth.signInAnonymously();
+
+          if (signInError) {
+            console.error(
+              "Kunde inte skapa anonym testanvändare:",
+              signInError.message,
+            );
+            loadSubscriptionsFromLocalBackup();
+            setHasLoaded(true);
+            return;
+          }
+
+          currentUserId = signInData.user?.id ?? null;
+        }
+
+        setUserId(currentUserId);
+
+        if (currentUserId) {
+          const { data, error } = await supabase
+            .from("subscriptions")
+            .select(
+              "id, name, category, price, billing_period, usage, plan, price_confirmed",
+            )
+            .order("created_at", { ascending: false });
+
+          if (error) {
+            console.error("Kunde inte hämta abonnemang:", error.message);
+            loadSubscriptionsFromLocalBackup();
+          } else {
+            setSubscriptions((data ?? []).map(mapDbSubscription));
+          }
+        }
+      } catch (error) {
+        console.error("Oväntat fel vid laddning av abonnemang:", error);
+        loadSubscriptionsFromLocalBackup();
+      }
+
+      setHasLoaded(true);
     }
 
-    if (savedGuideChoice === "true") {
-      setHasSkippedGuide(true);
+    function loadSubscriptionsFromLocalBackup() {
+      const savedSubscriptions = localStorage.getItem("subscriptions");
+
+      if (savedSubscriptions) {
+        setSubscriptions(JSON.parse(savedSubscriptions));
+      }
     }
 
-    if (savedSettings) {
-      const parsedSettings = JSON.parse(savedSettings) as AppSettings;
-      setCurrency(parsedSettings.currency ?? browserDefaults.currency);
-    } else {
-      setCurrency(browserDefaults.currency);
-    }
-
-    setHasLoaded(true);
+    loadUserAndSubscriptions();
   }, []);
 
   useEffect(() => {
@@ -1107,12 +1188,15 @@ export default function Home() {
       const { data: services, error: servicesError } = await supabase
         .from("service_catalog")
         .select(
-          "id, display_name, match_names, category, recommended_billing_period, note"
+          "id, display_name, match_names, category, recommended_billing_period, note",
         )
         .order("display_name");
 
       if (servicesError) {
-        console.error("Kunde inte hämta service_catalog:", servicesError.message);
+        console.error(
+          "Kunde inte hämta service_catalog:",
+          servicesError.message,
+        );
         setCatalogServices(knownServices);
         return;
       }
@@ -1148,7 +1232,9 @@ export default function Home() {
             `${service.display_name} känns igen. Kontrollera pris, plan och hur ofta du använder tjänsten.`,
         })) ?? knownServices;
 
-      setCatalogServices(mappedServices.length > 0 ? mappedServices : knownServices);
+      setCatalogServices(
+        mappedServices.length > 0 ? mappedServices : knownServices,
+      );
     }
 
     loadServiceCatalog();
@@ -1164,18 +1250,18 @@ export default function Home() {
     if (hasLoaded) {
       localStorage.setItem(
         "appSettings",
-        JSON.stringify({ language: "sv", currency })
+        JSON.stringify({ language: "sv", currency }),
       );
     }
   }, [currency, hasLoaded]);
 
   const monthlyCost = subscriptions.reduce(
     (sum, item) => sum + getMonthlyPrice(item),
-    0
+    0,
   );
   const yearlyCost = subscriptions.reduce(
     (sum, item) => sum + getYearlyPrice(item),
-    0
+    0,
   );
 
   const rarelyUsed = subscriptions.filter((item) => item.usage === "Sällan");
@@ -1183,27 +1269,27 @@ export default function Home() {
   const savingsCandidates = rarelyUsed.filter(
     (item) =>
       (getPriceSanity(item)?.level !== "low" || item.priceConfirmed) &&
-      !isConfirmedVeryLowCost(item)
+      !isConfirmedVeryLowCost(item),
   );
 
   const possibleMonthlySavings = savingsCandidates.reduce(
     (sum, item) => sum + getMonthlyPrice(item),
-    0
+    0,
   );
 
   const possibleYearlySavings = savingsCandidates.reduce(
     (sum, item) => sum + getYearlyPrice(item),
-    0
+    0,
   );
 
   const overlapInsights = getOverlapInsights(subscriptions);
 
   const strongWarnings = subscriptions.filter(
-    (item) => item.usage === "Sällan" && getMonthlyPrice(item) >= 150
+    (item) => item.usage === "Sällan" && getMonthlyPrice(item) >= 150,
   );
 
   const priceWarnings = subscriptions.filter(
-    (item) => getPriceSanity(item) !== null
+    (item) => getPriceSanity(item) !== null,
   );
 
   const checkItems = getCheckItems(subscriptions, overlapInsights);
@@ -1250,10 +1336,14 @@ export default function Home() {
     setShowServiceSuggestions(false);
   }
 
-  function handleAddOrUpdateSubscription(
-    event: React.FormEvent<HTMLFormElement>
+  async function handleAddOrUpdateSubscription(
+    event: React.FormEvent<HTMLFormElement>,
   ) {
     event.preventDefault();
+
+    if (isSavingSubscription) {
+      return;
+    }
 
     const submitter = event.nativeEvent.submitter as HTMLButtonElement | null;
     const shouldAddAnother = submitter?.value === "addAnother";
@@ -1266,37 +1356,59 @@ export default function Home() {
     }
 
     const cleanedPlan = plan.trim();
+    setIsSavingSubscription(true);
 
     if (editingId !== null) {
+      const updatedSubscription: Subscription = {
+        id: editingId,
+        name,
+        category,
+        price: priceAsNumber,
+        billingPeriod,
+        usage,
+        plan: cleanedPlan,
+        priceConfirmed: false,
+        benefits: getBenefitsForSubscription(name, category, cleanedPlan),
+      };
+
+      if (userId && !editingId.startsWith("demo-")) {
+        const { error } = await supabase
+          .from("subscriptions")
+          .update({
+            name,
+            category,
+            price: priceAsNumber,
+            currency,
+            billing_period: billingPeriod,
+            usage,
+            plan: cleanedPlan || null,
+            price_confirmed: false,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", editingId);
+
+        if (error) {
+          console.error("Kunde inte uppdatera abonnemang:", error.message);
+          alert("Det gick inte att spara ändringen i Supabase. Försök igen.");
+          setIsSavingSubscription(false);
+          return;
+        }
+      }
+
       setSubscriptions(
         subscriptions.map((item) =>
-          item.id === editingId
-            ? {
-                ...item,
-                name,
-                category,
-                price: priceAsNumber,
-                billingPeriod,
-                usage,
-                plan: cleanedPlan,
-                priceConfirmed: false,
-                benefits: getBenefitsForSubscription(
-                  name,
-                  category,
-                  cleanedPlan
-                ),
-              }
-            : item
-        )
+          item.id === editingId ? updatedSubscription : item,
+        ),
       );
 
       resetForm();
       setShowForm(false);
+      setIsSavingSubscription(false);
       return;
     }
 
-    const newSubscription: Subscription = {
-      id: Date.now(),
+    let newSubscription: Subscription = {
+      id: Date.now().toString(),
       name,
       category,
       price: priceAsNumber,
@@ -1307,17 +1419,64 @@ export default function Home() {
       benefits: getBenefitsForSubscription(name, category, cleanedPlan),
     };
 
+    if (userId) {
+      const { data, error } = await supabase
+        .from("subscriptions")
+        .insert({
+          user_id: userId,
+          name,
+          category,
+          price: priceAsNumber,
+          currency,
+          billing_period: billingPeriod,
+          usage,
+          plan: cleanedPlan || null,
+          price_confirmed: false,
+          source: "manual",
+          status: "active",
+        })
+        .select(
+          "id, name, category, price, billing_period, usage, plan, price_confirmed",
+        )
+        .single();
+
+      if (error) {
+        console.error("Kunde inte spara abonnemang:", error.message);
+        alert("Det gick inte att spara abonnemanget i Supabase. Försök igen.");
+        setIsSavingSubscription(false);
+        return;
+      }
+
+      newSubscription = mapDbSubscription(data);
+    }
+
     setSubscriptions([newSubscription, ...subscriptions]);
 
     resetForm();
     setShowForm(shouldAddAnother);
+    setIsSavingSubscription(false);
 
     if (shouldAddAnother) {
       focusNameField();
     }
   }
 
-  function handleDeleteSubscription(id: number) {
+  async function handleDeleteSubscription(id: string) {
+    if (userId && !id.startsWith("demo-")) {
+      const { error } = await supabase
+        .from("subscriptions")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        console.error("Kunde inte ta bort abonnemang:", error.message);
+        alert(
+          "Det gick inte att ta bort abonnemanget i Supabase. Försök igen.",
+        );
+        return;
+      }
+    }
+
     setSubscriptions(subscriptions.filter((item) => item.id !== id));
 
     if (editingId === id) {
@@ -1337,11 +1496,24 @@ export default function Home() {
     setShowForm(true);
   }
 
-  function handleConfirmPrice(id: number) {
+  async function handleConfirmPrice(id: string) {
+    if (userId && !id.startsWith("demo-")) {
+      const { error } = await supabase
+        .from("subscriptions")
+        .update({ price_confirmed: true, updated_at: new Date().toISOString() })
+        .eq("id", id);
+
+      if (error) {
+        console.error("Kunde inte bekräfta pris:", error.message);
+        alert("Det gick inte att bekräfta priset i Supabase. Försök igen.");
+        return;
+      }
+    }
+
     setSubscriptions(
       subscriptions.map((item) =>
-        item.id === id ? { ...item, priceConfirmed: true } : item
-      )
+        item.id === id ? { ...item, priceConfirmed: true } : item,
+      ),
     );
   }
 
@@ -1370,7 +1542,7 @@ export default function Home() {
 
   function handleStartFromScratch() {
     const shouldReset = window.confirm(
-      "Vill du rensa alla abonnemang och börja från noll?"
+      "Vill du rensa alla abonnemang och börja från noll?",
     );
 
     if (!shouldReset) {
@@ -1448,8 +1620,8 @@ export default function Home() {
 
               <p className="mt-5 max-w-2xl text-lg text-slate-600">
                 Lägg in dina abonnemang och få en snabb rapport över kostnader,
-                sällan använda tjänster, överlapp och vad du bör kontrollera först.
-                Rapporten visar{" "}
+                sällan använda tjänster, överlapp och vad du bör kontrollera
+                först. Rapporten visar{" "}
                 <span className="font-bold text-slate-950">
                   {formatCheckCount(thingsToCheck)}
                 </span>{" "}
@@ -1591,7 +1763,7 @@ export default function Home() {
                       onBlur={() => {
                         window.setTimeout(
                           () => setShowServiceSuggestions(false),
-                          150
+                          150,
                         );
                       }}
                       placeholder="Välj en vanlig tjänst eller skriv själv"
@@ -1656,7 +1828,8 @@ export default function Home() {
                       }
                       onUseBillingPeriod={() =>
                         setBillingPeriod(
-                          recognizedService.recommendedBillingPeriod ?? "monthly"
+                          recognizedService.recommendedBillingPeriod ??
+                            "monthly",
                         )
                       }
                       onChoosePlan={(selectedPlan) => setPlan(selectedPlan)}
@@ -1712,7 +1885,8 @@ export default function Home() {
                       />
                     </FormField>
                     <p className="mt-1 text-xs text-slate-500">
-                      Valfritt. Skriv plan om du vet den, annars kan du lämna tomt.
+                      Valfritt. Skriv plan om du vet den, annars kan du lämna
+                      tomt.
                     </p>
                   </div>
                 )}
@@ -1722,11 +1896,14 @@ export default function Home() {
                 <button
                   type="submit"
                   value="save"
-                  className="rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"
+                  disabled={isSavingSubscription}
+                  className="rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-400"
                 >
-                  {editingId !== null
-                    ? "Spara ändringar"
-                    : "Spara abonnemang"}
+                  {isSavingSubscription
+                    ? "Sparar..."
+                    : editingId !== null
+                      ? "Spara ändringar"
+                      : "Spara abonnemang"}
                 </button>
 
                 {editingId === null && (
@@ -1803,8 +1980,8 @@ function findKnownService(name: string, services = knownServices) {
   return (
     services.find((service) =>
       service.matchNames.some((matchName) =>
-        normalizedName.includes(normalizeText(matchName))
-      )
+        normalizedName.includes(normalizeText(matchName)),
+      ),
     ) ?? null
   );
 }
@@ -1821,7 +1998,7 @@ function getSuggestedServices(searchText: string, services = knownServices) {
       const displayName = normalizeText(service.displayName);
       const category = normalizeText(service.category);
       const normalizedMatchNames = service.matchNames.map((matchName) =>
-        normalizeText(matchName)
+        normalizeText(matchName),
       );
 
       let score = -1;
@@ -1830,7 +2007,7 @@ function getSuggestedServices(searchText: string, services = knownServices) {
         score = 100;
       } else if (
         normalizedMatchNames.some((matchName) =>
-          matchName.startsWith(normalizedSearch)
+          matchName.startsWith(normalizedSearch),
         )
       ) {
         score = 90;
@@ -1838,7 +2015,7 @@ function getSuggestedServices(searchText: string, services = knownServices) {
         score = 70;
       } else if (
         normalizedMatchNames.some((matchName) =>
-          matchName.includes(normalizedSearch)
+          matchName.includes(normalizedSearch),
         )
       ) {
         score = 60;
@@ -2137,11 +2314,16 @@ function getOverlapInsights(subscriptions: Subscription[]): Insight[] {
   const cloudServices = subscriptions.filter(
     (item) =>
       item.category === "Molnlagring" ||
-      hasName(item, ["icloud", "google one", "microsoft 365", "dropbox"])
+      hasName(item, ["icloud", "google one", "microsoft 365", "dropbox"]),
   );
 
   const musicServices = subscriptions.filter((item) =>
-    hasName(item, ["spotify", "apple music", "youtube music", "youtube premium"])
+    hasName(item, [
+      "spotify",
+      "apple music",
+      "youtube music",
+      "youtube premium",
+    ]),
   );
 
   const streamingServices = subscriptions.filter(
@@ -2156,14 +2338,14 @@ function getOverlapInsights(subscriptions: Subscription[]): Insight[] {
         "prime video",
         "tv4",
         "crunchyroll",
-      ])
+      ]),
   );
 
   const insuranceServices = subscriptions.filter(
     (item) =>
       item.category === "Försäkring" ||
       item.category === "Bankkort" ||
-      hasName(item, ["försäkring", "kreditkort", "bankkort"])
+      hasName(item, ["försäkring", "kreditkort", "bankkort"]),
   );
 
   if (cloudServices.length > 1) {
@@ -2199,7 +2381,7 @@ function getOverlapInsights(subscriptions: Subscription[]): Insight[] {
 
 function getCheckItems(
   subscriptions: Subscription[],
-  overlapInsights: Insight[]
+  overlapInsights: Insight[],
 ): CheckItem[] {
   const subscriptionChecks = subscriptions
     .map((subscription) => {
@@ -2274,16 +2456,19 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
         return {
           title: `Kontrollera priset på ${priceWarning.name}`,
           text: `${priceWarning.name} kostar ${formatCurrency(
-            getMonthlyPrice(priceWarning)
+            getMonthlyPrice(priceWarning),
           )}/mån, vilket verkar ovanligt lågt för en känd betaltjänst. Kontrollera om priset är rätt inskrivet, om det är kampanjpris, delad kostnad, provperiod eller om något saknas.`,
         };
       }
 
-      if (priceWarning.usage === "Sällan" && getMonthlyPrice(priceWarning) >= 150) {
+      if (
+        priceWarning.usage === "Sällan" &&
+        getMonthlyPrice(priceWarning) >= 150
+      ) {
         return {
           title: `Börja med ${priceWarning.name}`,
           text: `${priceWarning.name} kostar ${formatCurrency(
-            getMonthlyPrice(priceWarning)
+            getMonthlyPrice(priceWarning),
           )}/mån, används sällan och verkar ${
             sanity.level === "extreme" ? "extremt dyrt" : "dyrt"
           } för ${sanity.categoryLabel}. Pausa, byt plan eller säg upp om du inte använder premiuminnehållet.`,
@@ -2293,7 +2478,7 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
       return {
         title: `Kontrollera priset på ${priceWarning.name}`,
         text: `${priceWarning.name} kostar ${formatCurrency(
-          getMonthlyPrice(priceWarning)
+          getMonthlyPrice(priceWarning),
         )}/mån, vilket verkar ${
           sanity.level === "extreme" ? "extremt högt" : "ovanligt högt"
         } för ${sanity.categoryLabel}. Det kan vara rimligt om förmånerna är mycket värdefulla, men kontrollera priset, betalperioden och vad som ingår.`,
@@ -2311,7 +2496,7 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
     return {
       title: `Börja med ${item.name}`,
       text: `${item.name} kostar ${formatCurrency(
-        getMonthlyPrice(item)
+        getMonthlyPrice(item),
       )}/mån och används sällan. Det är din tydligaste sparsignal just nu.`,
     };
   }
@@ -2339,19 +2524,19 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
           "hallon",
           "tre",
           "3",
-        ])
+        ]),
     )
     .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
 
   const mobileToCheck = mobileSubscriptions.find(
-    (item) => getMonthlyPrice(item) >= 250 || item.usage !== "Ofta"
+    (item) => getMonthlyPrice(item) >= 250 || item.usage !== "Ofta",
   );
 
   if (mobileToCheck) {
     return {
       title: `Kolla surfmängden i ${mobileToCheck.name}`,
       text: `Gratisversionen kan inte se faktisk mobildata, men ${mobileToCheck.name} kostar ${formatCurrency(
-        getMonthlyPrice(mobileToCheck)
+        getMonthlyPrice(mobileToCheck),
       )}/mån. Kolla om en billigare surfmängd räcker.`,
     };
   }
@@ -2360,7 +2545,7 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
     (item) =>
       item.category === "Bankkort" ||
       item.category === "Försäkring" ||
-      hasName(item, ["bankkort", "kreditkort", "försäkring"])
+      hasName(item, ["bankkort", "kreditkort", "försäkring"]),
   );
 
   if (cardOrInsurance) {
@@ -2393,13 +2578,13 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
     return {
       title: `Kolla priset på ${item.name}`,
       text: `${item.name} kostar ${formatCurrency(
-        getMonthlyPrice(item)
+        getMonthlyPrice(item),
       )}/mån och används ibland. Se om billigare plan räcker.`,
     };
   }
 
   const mostExpensive = [...subscriptions].sort(
-    (a, b) => getMonthlyPrice(b) - getMonthlyPrice(a)
+    (a, b) => getMonthlyPrice(b) - getMonthlyPrice(a),
   )[0];
 
   if (mostExpensive) {
@@ -2418,7 +2603,8 @@ function getValueAssessment(subscription: Subscription) {
   if (isLikelyFreeMembership(subscription)) {
     return {
       label: "Gratis medlemskap",
-      description: "Kostar 0 kr. Värdet beror på om rabatter, bonus eller förmåner används.",
+      description:
+        "Kostar 0 kr. Värdet beror på om rabatter, bonus eller förmåner används.",
       className: "border-emerald-200 bg-emerald-50 text-emerald-800",
     };
   }
@@ -2427,7 +2613,7 @@ function getValueAssessment(subscription: Subscription) {
     return {
       label: "Ovanligt lågt pris",
       description: `${formatCurrency(
-        getMonthlyPrice(subscription)
+        getMonthlyPrice(subscription),
       )}/mån verkar ovanligt lågt för en känd betaltjänst.`,
       className: "border-amber-200 bg-amber-50 text-amber-800",
     };
@@ -2442,7 +2628,7 @@ function getValueAssessment(subscription: Subscription) {
     return {
       label: "Dyrt för låg användning",
       description: `${formatCurrency(
-        getMonthlyPrice(subscription)
+        getMonthlyPrice(subscription),
       )}/mån, används sällan och verkar ${
         priceSanity.level === "extreme" ? "extremt högt" : "högt"
       } för ${priceSanity.categoryLabel}.`,
@@ -2454,7 +2640,7 @@ function getValueAssessment(subscription: Subscription) {
     return {
       label: "Extremt hög kostnad",
       description: `${formatCurrency(
-        getMonthlyPrice(subscription)
+        getMonthlyPrice(subscription),
       )}/mån verkar extremt högt. Det kan vara rimligt om förmånerna är mycket värdefulla.`,
       className: "border-red-200 bg-red-50 text-red-800",
     };
@@ -2464,7 +2650,7 @@ function getValueAssessment(subscription: Subscription) {
     return {
       label: "Ovanligt hög kostnad",
       description: `${formatCurrency(
-        getMonthlyPrice(subscription)
+        getMonthlyPrice(subscription),
       )}/mån verkar högt för ${priceSanity.categoryLabel}.`,
       className: "border-amber-200 bg-amber-50 text-amber-800",
     };
@@ -2474,7 +2660,7 @@ function getValueAssessment(subscription: Subscription) {
     return {
       label: "Låg kostnad",
       description: `Priset är bekräftat och kostnaden är bara ${formatCurrency(
-        getMonthlyPrice(subscription)
+        getMonthlyPrice(subscription),
       )}/mån.`,
       className: "border-emerald-200 bg-emerald-50 text-emerald-800",
     };
@@ -2484,7 +2670,7 @@ function getValueAssessment(subscription: Subscription) {
     return {
       label: "Dyrt för låg användning",
       description: `${formatCurrency(
-        getMonthlyPrice(subscription)
+        getMonthlyPrice(subscription),
       )}/mån och används sällan.`,
       className: "border-red-200 bg-red-50 text-red-800",
     };
@@ -2554,7 +2740,7 @@ function getRecommendedAction(subscription: Subscription) {
 
   if (isConfirmedVeryLowCost(subscription)) {
     return `Behåll om du får någon nytta av tjänsten. Besparingen är bara ${formatCurrency(
-      getMonthlyPrice(subscription)
+      getMonthlyPrice(subscription),
     )}/mån.`;
   }
 
@@ -2566,7 +2752,10 @@ function getRecommendedAction(subscription: Subscription) {
     return "Kolla om tjänsten fortfarande behövs.";
   }
 
-  if (subscription.category === "Mobil" && getMonthlyPrice(subscription) >= 250) {
+  if (
+    subscription.category === "Mobil" &&
+    getMonthlyPrice(subscription) >= 250
+  ) {
     return "Kolla surfmängd och billigare plan.";
   }
 
@@ -2598,7 +2787,7 @@ function getRecommendationReason(subscription: Subscription) {
 
   if (priceSanity?.level === "low") {
     return `${formatCurrency(
-      getMonthlyPrice(subscription)
+      getMonthlyPrice(subscription),
     )}/mån verkar ovanligt lågt för en känd betaltjänst.`;
   }
 
@@ -2608,7 +2797,7 @@ function getRecommendationReason(subscription: Subscription) {
     getMonthlyPrice(subscription) >= 150
   ) {
     return `${formatCurrency(
-      getMonthlyPrice(subscription)
+      getMonthlyPrice(subscription),
     )}/mån, används sällan och verkar ${
       priceSanity.level === "extreme" ? "extremt högt" : "ovanligt högt"
     } för ${priceSanity.categoryLabel}.`;
@@ -2666,7 +2855,7 @@ function shouldShowRecommendationReason(subscription: Subscription) {
 function getBenefitsForSubscription(
   name: string,
   category: string,
-  plan?: string
+  plan?: string,
 ) {
   const normalizedName = normalizeText(name);
   const normalizedPlan = getPlanText(plan);
@@ -3081,7 +3270,10 @@ function CheckItemsCard({ checkItems }: { checkItems: CheckItem[] }) {
 
               <ul className="mt-2 space-y-1">
                 {item.reasons.map((reason) => (
-                  <li key={reason} className="text-xs font-semibold text-slate-600">
+                  <li
+                    key={reason}
+                    className="text-xs font-semibold text-slate-600"
+                  >
                     • {reason}
                   </li>
                 ))}
@@ -3227,8 +3419,9 @@ function DetectiveReport({
 
               {focusSubscription && (
                 <div className="mt-3 rounded-2xl bg-white/80 p-3 text-sm font-bold text-emerald-950">
-                  {formatCurrency(getMonthlyPrice(focusSubscription))}/mån kan motsvara{" "}
-                  {formatCurrency(getYearlyPrice(focusSubscription))} per år.
+                  {formatCurrency(getMonthlyPrice(focusSubscription))}/mån kan
+                  motsvara {formatCurrency(getYearlyPrice(focusSubscription))}{" "}
+                  per år.
                 </div>
               )}
             </div>
@@ -3245,7 +3438,7 @@ function DetectiveReport({
           <ReportLine
             icon="✅"
             text={`Besparing att undersöka: ${formatCurrency(
-              possibleMonthlySavings
+              possibleMonthlySavings,
             )}/mån`}
             strong
           />
@@ -3258,10 +3451,7 @@ function DetectiveReport({
           />
 
           {priceWarnings.length > 0 && (
-            <ReportLine
-              icon="🧾"
-              text="Minst ett pris bör kontrolleras"
-            />
+            <ReportLine icon="🧾" text="Minst ett pris bör kontrolleras" />
           )}
 
           {firstOverlap && <ReportLine icon="🔁" text={firstOverlap.title} />}
@@ -3357,7 +3547,8 @@ function SettingsModal({
 
             <p className="mt-3 max-w-xl text-sm text-slate-600">
               Här kan du välja valuta och se framtida val för import och
-              datakopplingar. Språkstöd kommer senare när appens texter är mer färdiga.
+              datakopplingar. Språkstöd kommer senare när appens texter är mer
+              färdiga.
             </p>
           </div>
 
@@ -3403,13 +3594,15 @@ function SettingsModal({
             </div>
 
             <p className="mt-3 text-xs font-semibold text-slate-500">
-              Valuta ändrar hur belopp visas och hur prisvarningar bedöms.
-              Appen räknar inte om gamla belopp mellan valutor ännu.
+              Valuta ändrar hur belopp visas och hur prisvarningar bedöms. Appen
+              räknar inte om gamla belopp mellan valutor ännu.
             </p>
           </div>
 
           <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5">
-            <h3 className="text-lg font-black text-slate-950">Data, import och Premium</h3>
+            <h3 className="text-lg font-black text-slate-950">
+              Data, import och Premium
+            </h3>
             <p className="mt-2 text-sm font-medium text-slate-600">
               Gratisversionen använder manuell inmatning. Import, mejlskanning,
               bankkoppling, prisjämförelser och smartare analys hör till
@@ -3444,9 +3637,10 @@ function SettingsModal({
             <h3 className="text-lg font-black text-emerald-950">Integritet</h3>
             <p className="mt-2 text-sm font-medium text-emerald-900">
               Gratisversionen använder bara det du själv skriver in och kopplar
-              inte bank eller mejl. I denna testversion sparas uppgifterna lokalt
-              i din webbläsare. Framtida bankkoppling ska ske säkert via godkänd
-              koppling/open banking, inte genom att du skriver banklösenord i appen.
+              inte bank eller mejl. I denna testversion sparas uppgifterna
+              lokalt i din webbläsare. Framtida bankkoppling ska ske säkert via
+              godkänd koppling/open banking, inte genom att du skriver
+              banklösenord i appen.
             </p>
           </div>
         </div>
@@ -3510,7 +3704,8 @@ function PremiumPreviewCard({
 
           <p className="mt-2 text-sm text-slate-600">
             Premium kan i framtiden hitta rabatter, förmåner, överlapp,
-            billigare alternativ och smarta påminnelser. Bankkoppling är aldrig ett krav.
+            billigare alternativ och smarta påminnelser. Bankkoppling är aldrig
+            ett krav.
           </p>
 
           <div className="mt-3 flex flex-wrap gap-2">
@@ -3632,9 +3827,9 @@ function PremiumDetailsModal({ onClose }: { onClose: () => void }) {
           </p>
           <p className="mt-1 text-sm text-slate-600">
             Gratisversionen kopplar inte bank eller mejl. Premium ska kunna
-            använda kvitton, filer, mejl eller säker bankkoppling om du själv väljer
-            det. Bankkoppling är aldrig ett krav, ska inte kräva att du skriver
-            banklösenord i appen och ska kunna kopplas bort igen.
+            använda kvitton, filer, mejl eller säker bankkoppling om du själv
+            väljer det. Bankkoppling är aldrig ett krav, ska inte kräva att du
+            skriver banklösenord i appen och ska kunna kopplas bort igen.
           </p>
         </div>
 
@@ -4008,10 +4203,7 @@ function getServiceIcon(subscription: Subscription) {
     };
   }
 
-  if (
-    name.includes("fitness24seven") ||
-    name.includes("fitness 24 seven")
-  ) {
+  if (name.includes("fitness24seven") || name.includes("fitness 24 seven")) {
     return {
       label: "F24",
       className: "bg-purple-700 text-white",
@@ -4066,9 +4258,9 @@ function SubscriptionCard({
   onConfirmPrice,
 }: {
   subscription: Subscription;
-  onDelete: (id: number) => void;
+  onDelete: (id: string) => void;
   onEdit: (subscription: Subscription) => void;
-  onConfirmPrice: (id: number) => void;
+  onConfirmPrice: (id: string) => void;
 }) {
   const [showBenefits, setShowBenefits] = useState(false);
   const valueAssessment = getValueAssessment(subscription);
