@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 type BillingPeriod = "monthly" | "yearly";
 
@@ -1057,6 +1058,8 @@ export default function Home() {
   const [showPremiumDetails, setShowPremiumDetails] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>("SEK");
+  const [catalogServices, setCatalogServices] =
+    useState<KnownService[]>(knownServices);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Streaming");
@@ -1069,8 +1072,8 @@ export default function Home() {
 
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const recognizedService = findKnownService(name);
-  const suggestedServices = getSuggestedServices(name);
+  const recognizedService = findKnownService(name, catalogServices);
+  const suggestedServices = getSuggestedServices(name, catalogServices);
 
   activeCurrency = currency;
   activeLocale = currencyLocales[currency];
@@ -1097,6 +1100,58 @@ export default function Home() {
     }
 
     setHasLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    async function loadServiceCatalog() {
+      const { data: services, error: servicesError } = await supabase
+        .from("service_catalog")
+        .select(
+          "id, display_name, match_names, category, recommended_billing_period, note"
+        )
+        .order("display_name");
+
+      if (servicesError) {
+        console.error("Kunde inte hämta service_catalog:", servicesError.message);
+        setCatalogServices(knownServices);
+        return;
+      }
+
+      const { data: plans, error: plansError } = await supabase
+        .from("service_plans")
+        .select("service_id, name")
+        .order("name");
+
+      if (plansError) {
+        console.error("Kunde inte hämta service_plans:", plansError.message);
+      }
+
+      const plansByServiceId = new Map<string, string[]>();
+
+      plans?.forEach((plan) => {
+        const currentPlans = plansByServiceId.get(plan.service_id) ?? [];
+        plansByServiceId.set(plan.service_id, [...currentPlans, plan.name]);
+      });
+
+      const mappedServices: KnownService[] =
+        services?.map((service) => ({
+          displayName: service.display_name,
+          matchNames: service.match_names ?? [service.display_name],
+          category: service.category,
+          plans: plansByServiceId.get(service.id) ?? [],
+          recommendedBillingPeriod:
+            service.recommended_billing_period === "yearly"
+              ? "yearly"
+              : "monthly",
+          note:
+            service.note ??
+            `${service.display_name} känns igen. Kontrollera pris, plan och hur ofta du använder tjänsten.`,
+        })) ?? knownServices;
+
+      setCatalogServices(mappedServices.length > 0 ? mappedServices : knownServices);
+    }
+
+    loadServiceCatalog();
   }, []);
 
   useEffect(() => {
@@ -1179,7 +1234,7 @@ export default function Home() {
   function handleNameChange(value: string) {
     setName(value);
 
-    const service = findKnownService(value);
+    const service = findKnownService(value, catalogServices);
 
     if (service) {
       setCategory(service.category);
@@ -1738,7 +1793,7 @@ function getPlanText(plan?: string) {
   return normalizeText(plan ?? "");
 }
 
-function findKnownService(name: string) {
+function findKnownService(name: string, services = knownServices) {
   const normalizedName = normalizeText(name);
 
   if (!normalizedName) {
@@ -1746,7 +1801,7 @@ function findKnownService(name: string) {
   }
 
   return (
-    knownServices.find((service) =>
+    services.find((service) =>
       service.matchNames.some((matchName) =>
         normalizedName.includes(normalizeText(matchName))
       )
@@ -1754,14 +1809,14 @@ function findKnownService(name: string) {
   );
 }
 
-function getSuggestedServices(searchText: string) {
+function getSuggestedServices(searchText: string, services = knownServices) {
   const normalizedSearch = normalizeText(searchText);
 
   if (!normalizedSearch) {
-    return knownServices.slice(0, 18);
+    return services.slice(0, 18);
   }
 
-  return knownServices
+  return services
     .map((service) => {
       const displayName = normalizeText(service.displayName);
       const category = normalizeText(service.category);
