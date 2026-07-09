@@ -5388,10 +5388,20 @@ function getPlanPriceSanity(subscription: Subscription): PriceSanity | null {
   }
 
   const monthlyPrice = getMonthlyPrice(subscription);
-  const min = Math.round(minPrice * getCurrencyMultiplier());
-  const max = Math.round(maxPrice * getCurrencyMultiplier());
-  const lowLimit = Math.max(0, Math.round((selectedPlanRange?.lowPrice ?? min * 0.85) * getCurrencyMultiplier()));
-  const highLimit = Math.round((selectedPlanRange?.highPrice ?? max * 1.2) * getCurrencyMultiplier());
+  const multiplier = getCurrencyMultiplier();
+  const typicalMinLimit = Math.round(minPrice * multiplier);
+  const typicalMaxLimit = Math.round(maxPrice * multiplier);
+  const lowLimit = Math.max(
+    0,
+    Math.round((selectedPlanRange?.lowPrice ?? typicalMinLimit) * multiplier),
+  );
+  const highLimit = Math.round(
+    (selectedPlanRange?.highPrice ?? typicalMaxLimit) * multiplier,
+  );
+  const extremeHighLimit = Math.max(
+    highLimit + 1,
+    Math.round(highLimit * 1.25),
+  );
 
   if (monthlyPrice > 0 && monthlyPrice < lowLimit) {
     return {
@@ -5403,9 +5413,9 @@ function getPlanPriceSanity(subscription: Subscription): PriceSanity | null {
 
   if (monthlyPrice > highLimit) {
     return {
-      level: monthlyPrice > highLimit * 1.8 ? "extreme" : "unusual",
+      level: monthlyPrice > extremeHighLimit ? "extreme" : "unusual",
       unusualLimit: highLimit,
-      extremeLimit: Math.round(highLimit * 1.8),
+      extremeLimit: extremeHighLimit,
       categoryLabel: `vald plan (${planName})`,
     };
   }
