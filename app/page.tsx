@@ -94,6 +94,122 @@ let activePlanPriceRangeMap: PlanPriceRangeMap = {};
 const inputClassName =
   "w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-emerald-600";
 
+const categoryOptions = [
+  "Underhållning",
+  "Digitala tjänster",
+  "Kommunikation",
+  "Hälsa och träning",
+  "Shopping och medlemskap",
+  "Ekonomi och försäkring",
+  "Hem och boende",
+  "Resor och transport",
+  "Utbildning",
+  "Annat",
+] as const;
+
+type BenefitlyCategory = (typeof categoryOptions)[number];
+
+function getBenefitlyCategory(
+  category: string,
+  serviceName = "",
+): BenefitlyCategory {
+  const normalizedCategory = category.toLowerCase().trim();
+  const normalizedServiceName = serviceName.toLowerCase().trim();
+
+  const entertainmentMemberships = [
+    "storytel",
+    "bookbeat",
+    "nextory",
+    "readly",
+    "podimo",
+    "audible",
+    "xbox game pass",
+    "playstation plus",
+    "nintendo switch online",
+  ];
+
+  const digitalMemberships = ["adobe", "canva"];
+  const educationMemberships = ["duolingo"];
+  const travelMemberships = ["sj prio"];
+
+  if (
+    normalizedCategory === "streaming" ||
+    normalizedCategory === "nyheter" ||
+    normalizedCategory === "spel" ||
+    entertainmentMemberships.some((name) =>
+      normalizedServiceName.includes(name),
+    )
+  ) {
+    return "Underhållning";
+  }
+
+  if (
+    normalizedCategory === "molnlagring" ||
+    normalizedCategory === "ai och verktyg" ||
+    digitalMemberships.some((name) => normalizedServiceName.includes(name))
+  ) {
+    return "Digitala tjänster";
+  }
+
+  if (normalizedCategory === "mobil" || normalizedCategory === "bredband") {
+    return "Kommunikation";
+  }
+
+  if (normalizedCategory === "gym" || normalizedCategory === "hälsa") {
+    return "Hälsa och träning";
+  }
+
+  if (
+    normalizedCategory === "shopping" ||
+    normalizedCategory === "medlemskap" ||
+    normalizedCategory === "mat och leverans"
+  ) {
+    if (
+      educationMemberships.some((name) => normalizedServiceName.includes(name))
+    ) {
+      return "Utbildning";
+    }
+
+    if (
+      travelMemberships.some((name) => normalizedServiceName.includes(name))
+    ) {
+      return "Resor och transport";
+    }
+
+    return "Shopping och medlemskap";
+  }
+
+  if (
+    normalizedCategory === "bank och ekonomi" ||
+    normalizedCategory === "bankkort" ||
+    normalizedCategory === "försäkring"
+  ) {
+    return "Ekonomi och försäkring";
+  }
+
+  if (
+    normalizedCategory === "el och energi" ||
+    normalizedCategory === "hem" ||
+    normalizedCategory === "hem och boende"
+  ) {
+    return "Hem och boende";
+  }
+
+  if (normalizedCategory === "transport") {
+    return "Resor och transport";
+  }
+
+  if (normalizedCategory === "utbildning") {
+    return "Utbildning";
+  }
+
+  if (categoryOptions.includes(category as BenefitlyCategory)) {
+    return category as BenefitlyCategory;
+  }
+
+  return "Annat";
+}
+
 const knownServices: KnownService[] = [
   {
     displayName: "Netflix",
@@ -957,50 +1073,54 @@ const initialSubscriptions: Subscription[] = [
   {
     id: "demo-1",
     name: "Spotify Premium",
-    category: "Streaming",
+    category: "Underhållning",
     price: 119,
     billingPeriod: "monthly",
     usage: "Ofta",
     plan: "Premium",
     benefits: getBenefitsForSubscription(
       "Spotify Premium",
-      "Streaming",
+      "Underhållning",
       "Premium",
     ),
   },
   {
     id: "demo-2",
     name: "Microsoft 365",
-    category: "Molnlagring",
+    category: "Digitala tjänster",
     price: 99,
     billingPeriod: "monthly",
     usage: "Ibland",
     plan: "Family",
     benefits: getBenefitsForSubscription(
       "Microsoft 365",
-      "Molnlagring",
+      "Digitala tjänster",
       "Family",
     ),
   },
   {
     id: "demo-3",
     name: "Google One",
-    category: "Molnlagring",
+    category: "Digitala tjänster",
     price: 25,
     billingPeriod: "monthly",
     usage: "Sällan",
     plan: "",
-    benefits: getBenefitsForSubscription("Google One", "Molnlagring", ""),
+    benefits: getBenefitsForSubscription("Google One", "Digitala tjänster", ""),
   },
   {
     id: "demo-4",
     name: "Nordic Wellness",
-    category: "Gym",
+    category: "Hälsa och träning",
     price: 399,
     billingPeriod: "monthly",
     usage: "Sällan",
     plan: "",
-    benefits: getBenefitsForSubscription("Nordic Wellness", "Gym", ""),
+    benefits: getBenefitsForSubscription(
+      "Nordic Wellness",
+      "Hälsa och träning",
+      "",
+    ),
   },
 ];
 
@@ -1101,7 +1221,7 @@ function mapDbSubscription(row: SupabaseSubscriptionRow): Subscription {
   return {
     id: row.id,
     name: row.name,
-    category: row.category,
+    category: getBenefitlyCategory(row.category, row.name),
     price: Math.round(Number(row.price)),
     billingPeriod,
     usage: row.usage,
@@ -1120,10 +1240,16 @@ export default function Home() {
   const [showPremiumDetails, setShowPremiumDetails] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [currency, setCurrency] = useState<CurrencyCode>("SEK");
-  const [catalogServices, setCatalogServices] =
-    useState<KnownService[]>(knownServices);
+  const [catalogServices, setCatalogServices] = useState<KnownService[]>(
+    knownServices.map((service) => ({
+      ...service,
+      category: getBenefitlyCategory(service.category, service.displayName),
+    })),
+  );
   const [planFeatureMap, setPlanFeatureMap] = useState<PlanFeatureMap>({});
-  const [planPriceRangeMap, setPlanPriceRangeMap] = useState<PlanPriceRangeMap>({});
+  const [planPriceRangeMap, setPlanPriceRangeMap] = useState<PlanPriceRangeMap>(
+    {},
+  );
   const [userId, setUserId] = useState<string | null>(null);
   const [isSavingSubscription, setIsSavingSubscription] = useState(false);
   const [storageStatus, setStorageStatus] = useState(
@@ -1131,7 +1257,7 @@ export default function Home() {
   );
 
   const [name, setName] = useState("");
-  const [category, setCategory] = useState("Streaming");
+  const [category, setCategory] = useState<BenefitlyCategory>("Underhållning");
   const [price, setPrice] = useState("");
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
   const [usage, setUsage] = useState("Ofta");
@@ -1233,7 +1359,18 @@ export default function Home() {
       const savedSubscriptions = localStorage.getItem("subscriptions");
 
       if (savedSubscriptions) {
-        setSubscriptions(JSON.parse(savedSubscriptions));
+        const parsedSubscriptions = JSON.parse(
+          savedSubscriptions,
+        ) as Subscription[];
+        setSubscriptions(
+          parsedSubscriptions.map((subscription) => ({
+            ...subscription,
+            category: getBenefitlyCategory(
+              subscription.category,
+              subscription.name,
+            ),
+          })),
+        );
       }
     }
 
@@ -1254,7 +1391,15 @@ export default function Home() {
           "Kunde inte hämta service_catalog:",
           servicesError.message,
         );
-        setCatalogServices(knownServices);
+        setCatalogServices(
+          knownServices.map((service) => ({
+            ...service,
+            category: getBenefitlyCategory(
+              service.category,
+              service.displayName,
+            ),
+          })),
+        );
         setPlanFeatureMap({});
         return;
       }
@@ -1284,7 +1429,10 @@ export default function Home() {
         services?.map((service) => ({
           displayName: service.display_name,
           matchNames: service.match_names ?? [service.display_name],
-          category: service.category,
+          category: getBenefitlyCategory(
+            service.category,
+            service.display_name,
+          ),
           plans: plansByServiceId.get(service.id) ?? [],
           recommendedBillingPeriod:
             service.recommended_billing_period === "yearly"
@@ -1296,7 +1444,15 @@ export default function Home() {
         })) ?? knownServices;
 
       setCatalogServices(
-        mappedServices.length > 0 ? mappedServices : knownServices,
+        mappedServices.length > 0
+          ? mappedServices
+          : knownServices.map((service) => ({
+              ...service,
+              category: getBenefitlyCategory(
+                service.category,
+                service.displayName,
+              ),
+            })),
       );
 
       const { data: features, error: featuresError } = await supabase
@@ -1470,7 +1626,7 @@ export default function Home() {
 
   function resetForm() {
     setName("");
-    setCategory("Streaming");
+    setCategory("Underhållning");
     setPrice("");
     setBillingPeriod("monthly");
     setUsage("Ofta");
@@ -1494,14 +1650,14 @@ export default function Home() {
     const service = findKnownService(value, catalogServices);
 
     if (service) {
-      setCategory(service.category);
+      setCategory(getBenefitlyCategory(service.category, service.displayName));
       setBillingPeriod(service.recommendedBillingPeriod ?? "monthly");
     }
   }
 
   function handleChooseSuggestedService(service: KnownService) {
     setName(service.displayName);
-    setCategory(service.category);
+    setCategory(getBenefitlyCategory(service.category, service.displayName));
     setBillingPeriod(service.recommendedBillingPeriod ?? "monthly");
     setPlan("");
     setShowServiceSuggestions(false);
@@ -1523,10 +1679,11 @@ export default function Home() {
     }
 
     const cleanedPlan = plan.trim();
+    const normalizedCategory = getBenefitlyCategory(category, name);
     const draftForPriceCheck: Subscription = {
       id: editingId ?? "draft",
       name,
-      category,
+      category: normalizedCategory,
       price: priceAsNumber,
       billingPeriod,
       usage,
@@ -1552,7 +1709,7 @@ export default function Home() {
       const updatedSubscription: Subscription = {
         id: editingId,
         name,
-        category,
+        category: normalizedCategory,
         price: priceAsNumber,
         billingPeriod,
         usage,
@@ -1560,7 +1717,7 @@ export default function Home() {
         priceConfirmed: skipPlanPriceWarning,
         benefits: getBenefitsForSubscription(
           name,
-          category,
+          normalizedCategory,
           cleanedPlan,
           catalogServices,
           planFeatureMap,
@@ -1572,7 +1729,7 @@ export default function Home() {
           .from("subscriptions")
           .update({
             name,
-            category,
+            category: normalizedCategory,
             price: priceAsNumber,
             currency,
             billing_period: billingPeriod,
@@ -1608,7 +1765,7 @@ export default function Home() {
     let newSubscription: Subscription = {
       id: Date.now().toString(),
       name,
-      category,
+      category: normalizedCategory,
       price: priceAsNumber,
       billingPeriod,
       usage,
@@ -1616,7 +1773,7 @@ export default function Home() {
       priceConfirmed: skipPlanPriceWarning,
       benefits: getBenefitsForSubscription(
         name,
-        category,
+        normalizedCategory,
         cleanedPlan,
         catalogServices,
         planFeatureMap,
@@ -1629,7 +1786,7 @@ export default function Home() {
         .insert({
           user_id: userId,
           name,
-          category,
+          category: normalizedCategory,
           price: priceAsNumber,
           currency,
           billing_period: billingPeriod,
@@ -1705,7 +1862,7 @@ export default function Home() {
   function handleEditSubscription(subscription: Subscription) {
     setEditingId(subscription.id);
     setName(subscription.name);
-    setCategory(subscription.category);
+    setCategory(getBenefitlyCategory(subscription.category, subscription.name));
     setPrice(subscription.price.toString());
     setBillingPeriod(subscription.billingPeriod ?? "monthly");
     setUsage(subscription.usage);
@@ -2065,7 +2222,12 @@ export default function Home() {
                       selectedPlan={plan}
                       onPlanChange={setPlan}
                       onUseCategory={() =>
-                        setCategory(recognizedService.category)
+                        setCategory(
+                          getBenefitlyCategory(
+                            recognizedService.category,
+                            recognizedService.displayName,
+                          ),
+                        )
                       }
                       onUseBillingPeriod={() =>
                         setBillingPeriod(
@@ -2081,28 +2243,16 @@ export default function Home() {
                 <FormField label="Kategori">
                   <select
                     value={category}
-                    onChange={(event) => setCategory(event.target.value)}
+                    onChange={(event) =>
+                      setCategory(event.target.value as BenefitlyCategory)
+                    }
                     className={inputClassName}
                   >
-                    <option>Streaming</option>
-                    <option>Molnlagring</option>
-                    <option>Gym</option>
-                    <option>Mobil</option>
-                    <option>Bredband</option>
-                    <option>El och energi</option>
-                    <option>Bank och ekonomi</option>
-                    <option>Bankkort</option>
-                    <option>Försäkring</option>
-                    <option>Medlemskap</option>
-                    <option>Mat och leverans</option>
-                    <option>Shopping</option>
-                    <option>Transport</option>
-                    <option>Nyheter</option>
-                    <option>Spel</option>
-                    <option>Utbildning</option>
-                    <option>Hälsa</option>
-                    <option>AI och verktyg</option>
-                    <option>Annat</option>
+                    {categoryOptions.map((categoryName) => (
+                      <option key={categoryName} value={categoryName}>
+                        {categoryName}
+                      </option>
+                    ))}
                   </select>
                 </FormField>
 
@@ -2427,6 +2577,7 @@ function getCurrencyMultiplier() {
 }
 
 function getPriceLimitsForCategory(category: string) {
+  const normalizedCategory = getBenefitlyCategory(category);
   const multiplier = getCurrencyMultiplier();
 
   function makeLimit(unusual: number, extreme: number, categoryLabel: string) {
@@ -2437,52 +2588,40 @@ function getPriceLimitsForCategory(category: string) {
     };
   }
 
-  if (category === "Streaming") {
-    return makeLimit(500, 1000, "streaming");
+  if (normalizedCategory === "Underhållning") {
+    return makeLimit(500, 1000, "underhållning");
   }
 
-  if (category === "Molnlagring") {
-    return makeLimit(500, 1000, "molnlagring");
+  if (normalizedCategory === "Digitala tjänster") {
+    return makeLimit(800, 1600, "digitala tjänster");
   }
 
-  if (category === "Gym") {
-    return makeLimit(1000, 2000, "gym");
+  if (normalizedCategory === "Kommunikation") {
+    return makeLimit(800, 1500, "kommunikation");
   }
 
-  if (category === "Mobil") {
-    return makeLimit(800, 1500, "mobil");
+  if (normalizedCategory === "Hälsa och träning") {
+    return makeLimit(1000, 2000, "hälsa och träning");
   }
 
-  if (category === "Bredband") {
-    return makeLimit(800, 1500, "bredband");
+  if (normalizedCategory === "Shopping och medlemskap") {
+    return makeLimit(1000, 2000, "shopping och medlemskap");
   }
 
-  if (category === "El och energi") {
-    return makeLimit(3000, 6000, "el och energi");
+  if (normalizedCategory === "Ekonomi och försäkring") {
+    return makeLimit(2000, 4000, "ekonomi och försäkring");
   }
 
-  if (category === "Bank och ekonomi") {
-    return makeLimit(500, 1000, "bank och ekonomi");
+  if (normalizedCategory === "Hem och boende") {
+    return makeLimit(3000, 6000, "hem och boende");
   }
 
-  if (category === "Bankkort") {
-    return makeLimit(500, 1000, "bankkort");
+  if (normalizedCategory === "Resor och transport") {
+    return makeLimit(2000, 4000, "resor och transport");
   }
 
-  if (category === "Försäkring") {
-    return makeLimit(2000, 4000, "försäkring");
-  }
-
-  if (category === "Mat och leverans") {
-    return makeLimit(500, 1000, "mat och leverans");
-  }
-
-  if (category === "Medlemskap") {
-    return makeLimit(500, 1000, "medlemskap");
-  }
-
-  if (category === "Shopping") {
-    return makeLimit(1000, 2000, "shopping");
+  if (normalizedCategory === "Utbildning") {
+    return makeLimit(1500, 3000, "utbildning");
   }
 
   return makeLimit(1000, 2000, "den här typen av tjänst");
@@ -2516,8 +2655,8 @@ function isLikelyFreeMembership(subscription: Subscription) {
   }
 
   return (
-    subscription.category === "Medlemskap" ||
-    subscription.category === "Shopping"
+    getBenefitlyCategory(subscription.category, subscription.name) ===
+    "Shopping och medlemskap"
   );
 }
 
@@ -2544,25 +2683,23 @@ function getLowPriceLimitForKnownPaidService(subscription: Subscription) {
     return null;
   }
 
-  const categoriesThatUsuallyCostMoney = [
-    "Streaming",
-    "Molnlagring",
-    "Gym",
-    "Mobil",
-    "Bredband",
-    "El och energi",
-    "Bank och ekonomi",
-    "Mat och leverans",
-    "Medlemskap",
-    "Transport",
-    "Nyheter",
-    "Spel",
+  const categoriesThatUsuallyCostMoney: BenefitlyCategory[] = [
+    "Underhållning",
+    "Digitala tjänster",
+    "Kommunikation",
+    "Hälsa och träning",
+    "Shopping och medlemskap",
+    "Ekonomi och försäkring",
+    "Hem och boende",
+    "Resor och transport",
     "Utbildning",
-    "Hälsa",
-    "AI och verktyg",
   ];
 
-  if (!categoriesThatUsuallyCostMoney.includes(service.category)) {
+  if (
+    !categoriesThatUsuallyCostMoney.includes(
+      getBenefitlyCategory(service.category, service.displayName),
+    )
+  ) {
     return null;
   }
 
@@ -2683,7 +2820,7 @@ function getOverlapInsights(subscriptions: Subscription[]): Insight[] {
 
   const cloudServices = subscriptions.filter(
     (item) =>
-      item.category === "Molnlagring" ||
+      getBenefitlyCategory(item.category, item.name) === "Digitala tjänster" ||
       hasName(item, ["icloud", "google one", "microsoft 365", "dropbox"]),
   );
 
@@ -2698,7 +2835,7 @@ function getOverlapInsights(subscriptions: Subscription[]): Insight[] {
 
   const streamingServices = subscriptions.filter(
     (item) =>
-      item.category === "Streaming" ||
+      getBenefitlyCategory(item.category, item.name) === "Underhållning" ||
       hasName(item, [
         "netflix",
         "disney",
@@ -2713,8 +2850,8 @@ function getOverlapInsights(subscriptions: Subscription[]): Insight[] {
 
   const insuranceServices = subscriptions.filter(
     (item) =>
-      item.category === "Försäkring" ||
-      item.category === "Bankkort" ||
+      getBenefitlyCategory(item.category, item.name) ===
+        "Ekonomi och försäkring" ||
       hasName(item, ["försäkring", "kreditkort", "bankkort"]),
   );
 
@@ -2857,7 +2994,11 @@ function getCheckItems(
         reasons.push("Används ibland och kostar en del");
       }
 
-      if (subscription.category === "Mobil" && monthlyPrice >= 250) {
+      if (
+        getBenefitlyCategory(subscription.category, subscription.name) ===
+          "Kommunikation" &&
+        monthlyPrice >= 250
+      ) {
         reasons.push("Mobilkostnaden kan vara värd att jämföra");
       }
 
@@ -2957,7 +3098,7 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
   const mobileSubscriptions = subscriptions
     .filter(
       (item) =>
-        item.category === "Mobil" ||
+        getBenefitlyCategory(item.category, item.name) === "Kommunikation" ||
         hasName(item, [
           "telia",
           "tele2",
@@ -2987,8 +3128,8 @@ function getBestNextAction(subscriptions: Subscription[]): Insight | null {
 
   const cardOrInsurance = subscriptions.find(
     (item) =>
-      item.category === "Bankkort" ||
-      item.category === "Försäkring" ||
+      getBenefitlyCategory(item.category, item.name) ===
+        "Ekonomi och försäkring" ||
       hasName(item, ["bankkort", "kreditkort", "försäkring"]),
   );
 
@@ -3197,17 +3338,18 @@ function getRecommendedAction(subscription: Subscription) {
   }
 
   if (
-    subscription.category === "Mobil" &&
+    getBenefitlyCategory(subscription.category, subscription.name) ===
+      "Kommunikation" &&
     getMonthlyPrice(subscription) >= 250
   ) {
     return "Kolla surfmängd och billigare plan.";
   }
 
-  if (subscription.category === "Bankkort") {
+  if (hasName(subscription, ["bankkort", "kreditkort", "visa", "mastercard"])) {
     return "Kolla årsavgift och vilka förmåner du använder.";
   }
 
-  if (subscription.category === "Försäkring") {
+  if (hasName(subscription, ["försäkring", "insurance"])) {
     return "Kolla om skyddet redan ingår någon annanstans.";
   }
 
@@ -3587,123 +3729,95 @@ function getBenefitsForSubscription(
 }
 
 function getBenefitsByCategory(category: string) {
-  if (category === "Streaming") {
+  const normalizedCategory = getBenefitlyCategory(category);
+
+  if (normalizedCategory === "Underhållning") {
     return [
-      "Underhållning",
-      "Familjeplan kan bero på tjänst och plan",
-      "Offline-läge kan bero på tjänst och plan",
-      "Profiler kan finnas",
+      "Underhållning eller innehåll",
+      "Familjeplan kan finnas",
+      "Offline-läge eller nedladdningar kan ingå",
+      "Tjänsten kan överlappa med andra underhållningstjänster",
       "Kontrollera om billigare plan räcker",
     ];
   }
 
-  if (category === "Molnlagring") {
+  if (normalizedCategory === "Digitala tjänster") {
     return [
-      "Extra lagring",
-      "Familjedelning kan bero på plan",
-      "Backup av filer",
-      "Synkning mellan enheter",
-      "Kan överlappa med annan molnlagring",
+      "Digitala funktioner eller lagring",
+      "Familje- eller teamdelning kan finnas",
+      "Säkerhet, backup eller synkning kan ingå",
+      "Kan överlappa med andra digitala tjänster",
+      "Kontrollera vilka premiumfunktioner du faktiskt använder",
     ];
   }
 
-  if (category === "Gym") {
+  if (normalizedCategory === "Kommunikation") {
     return [
-      "Träning",
-      "Gruppass kan bero på medlemskap",
-      "Flera anläggningar kan bero på medlemskap",
-      "App eller bokning kan finnas",
-      "Kontrollera om du använder medlemskapet tillräckligt",
+      "Mobil, bredband eller annan kommunikation",
+      "Surf, hastighet eller utrustning kan ingå",
+      "Familje- eller samlingsrabatt kan finnas",
+      "Bindningstid och villkor bör kontrolleras",
+      "Kontrollera om nivån är högre än du behöver",
     ];
   }
 
-  if (category === "Mobil") {
+  if (normalizedCategory === "Hälsa och träning") {
     return [
-      "Surf",
-      "Samtal och sms",
-      "Rabatter kan finnas",
-      "Familjeabonnemang kan finnas",
-      "Kontrollera om du har för mycket surf",
+      "Träning, hälsa eller välmående",
+      "Gruppass eller digitalt innehåll kan ingå",
+      "Flera anläggningar eller familjeplan kan finnas",
+      "Bokning eller appfunktioner kan ingå",
+      "Kontrollera om du använder tjänsten tillräckligt ofta",
     ];
   }
 
-  if (category === "Bredband") {
+  if (normalizedCategory === "Shopping och medlemskap") {
     return [
-      "Internet hemma",
-      "Hastighet och bindningstid bör kontrolleras",
-      "Router eller utrustning kan ingå",
-      "Kan ibland kombineras med mobilabonnemang",
-      "Kontrollera om du betalar för högre hastighet än du behöver",
+      "Rabatter eller medlemspriser kan ingå",
+      "Poäng, bonus eller cashback kan finnas",
+      "Fri frakt eller leveransförmåner kan finnas",
+      "Exklusiva erbjudanden kan ingå",
+      "Kontrollera om förmånerna faktiskt används",
     ];
   }
 
-  if (category === "El och energi") {
+  if (normalizedCategory === "Ekonomi och försäkring") {
     return [
-      "Elavtal eller energitjänst",
-      "Fast avgift bör kontrolleras",
-      "Rörligt eller bundet pris kan påverka kostnaden",
-      "App- eller smart styrning kan ingå",
-      "Kontrollera om avtalet fortfarande passar din förbrukning",
+      "Ekonomitjänst, kort eller försäkringsskydd",
+      "Avgifter och självrisk bör kontrolleras",
+      "Bonus, cashback eller reseförsäkring kan ingå",
+      "Skydd kan överlappa med andra kort eller försäkringar",
+      "Kontrollera vilka förmåner och skydd du använder",
     ];
   }
 
-  if (category === "Bank och ekonomi") {
+  if (normalizedCategory === "Hem och boende") {
     return [
-      "Ekonomitjänst eller konto",
-      "Kort, konto eller premiumfunktioner kan ingå",
-      "Avgifter bör kontrolleras",
-      "Kan överlappa med bankkort eller annan ekonomiapp",
-      "Kontrollera om premiumfunktionerna används",
+      "Tjänst för hemmet eller boendet",
+      "Fast avgift och rörligt pris bör kontrolleras",
+      "Utrustning, support eller smart styrning kan ingå",
+      "Bindningstid och avtalsvillkor kan påverka kostnaden",
+      "Kontrollera om avtalet fortfarande passar hushållet",
     ];
   }
 
-  if (category === "Bankkort") {
+  if (normalizedCategory === "Resor och transport") {
     return [
-      "Reseförsäkring kan ingå",
-      "Köpskydd kan ingå",
-      "Rabatter kan finnas",
-      "Bonus eller cashback kan finnas",
-      "Kontrollera årsavgiften",
+      "Resor, biljetter eller transporttjänster",
+      "Rabatter eller bonus kan finnas",
+      "Pass, periodkort eller medlemsnivå kan påverka priset",
+      "Reseförmåner kan överlappa med kort eller medlemskap",
+      "Kontrollera om abonnemang eller styckpris är billigast",
     ];
   }
 
-  if (category === "Försäkring") {
+  if (normalizedCategory === "Utbildning") {
     return [
-      "Skydd vid skada",
-      "Villkor bör jämföras",
-      "Överlapp kan finnas",
-      "Självrisk bör kontrolleras",
-      "Kontrollera om skyddet redan ingår någon annanstans",
-    ];
-  }
-
-  if (category === "Medlemskap") {
-    return [
-      "Rabatter kan ingå",
-      "Bonusar kan finnas",
-      "Medlemsförmåner",
-      "Exklusiva erbjudanden kan finnas",
-      "Kontrollera om medlemskapet används tillräckligt",
-    ];
-  }
-
-  if (category === "Mat och leverans") {
-    return [
-      "Rabatter kan finnas",
-      "Fri leverans kan bero på erbjudande eller medlemskap",
-      "Kampanjer kan finnas",
-      "Medlemskap kan löna sig vid ofta användning",
-      "Kontrollera extra avgifter",
-    ];
-  }
-
-  if (category === "Shopping") {
-    return [
-      "Medlemsrabatter kan finnas",
-      "Poäng eller bonus kan ingå",
-      "Exklusiva erbjudanden kan finnas",
-      "Fri frakt kan bero på nivå",
-      "Kontrollera om poäng eller rabatter går ut",
+      "Kurser, språk eller kompetensutveckling",
+      "Certifikat eller premiuminnehåll kan ingå",
+      "Student- eller årsplan kan finnas",
+      "Tjänsten kan överlappa med andra utbildningsplattformar",
+      "Kontrollera om du använder utbildningen regelbundet",
     ];
   }
 
@@ -3711,7 +3825,7 @@ function getBenefitsByCategory(category: string) {
     "Förmåner kan finnas",
     "Kontrollera villkoren",
     "Jämför med andra tjänster",
-    "Se om du betalar för något liknande redan",
+    "Se om du redan betalar för något liknande",
     "Kontrollera om tjänsten används tillräckligt",
   ];
 }
@@ -3916,9 +4030,9 @@ function DetectiveReport({
               Din första översikt börjar här
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              Lägg till 3–5 tjänster, till exempel streaming, mobil och kort.
-              Då kan Benefitly börja hitta kostnader, förmåner, överlapp och
-              en tydlig nästa åtgärd.
+              Lägg till 3–5 tjänster, till exempel streaming, mobil och kort. Då
+              kan Benefitly börja hitta kostnader, förmåner, överlapp och en
+              tydlig nästa åtgärd.
             </p>
           </div>
         </div>
@@ -3929,12 +4043,25 @@ function DetectiveReport({
   const firstOverlap = overlapInsights[0];
   const focusSubscription = getReportFocusSubscription(subscriptions);
   const reportCheckCount = checkItems.length;
-  const score = getOverallBenefitlyScore(subscriptions, checkItems, possibleMonthlySavings);
+  const score = getOverallBenefitlyScore(
+    subscriptions,
+    checkItems,
+    possibleMonthlySavings,
+  );
   const scoreText = getBenefitlyScoreText(score);
-  const categoryCount = new Set(subscriptions.map((item) => item.category)).size;
-  const confirmedPrices = subscriptions.filter((item) => item.priceConfirmed).length;
-  const servicesWithPlan = subscriptions.filter((item) => item.plan?.trim()).length;
-  const hasUsefulSignals = reportCheckCount > 0 || overlapInsights.length > 0 || possibleMonthlySavings > 0;
+  const categoryCount = new Set(
+    subscriptions.map((item) => getBenefitlyCategory(item.category, item.name)),
+  ).size;
+  const confirmedPrices = subscriptions.filter(
+    (item) => item.priceConfirmed,
+  ).length;
+  const servicesWithPlan = subscriptions.filter((item) =>
+    item.plan?.trim(),
+  ).length;
+  const hasUsefulSignals =
+    reportCheckCount > 0 ||
+    overlapInsights.length > 0 ||
+    possibleMonthlySavings > 0;
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -4123,7 +4250,15 @@ function getOverallBenefitlyScore(
 
   return Math.max(
     12,
-    Math.min(100, 24 + serviceCoverage + planCoverage + usageCoverage - pricePenalty - savingsPenalty),
+    Math.min(
+      100,
+      24 +
+        serviceCoverage +
+        planCoverage +
+        usageCoverage -
+        pricePenalty -
+        savingsPenalty,
+    ),
   );
 }
 
@@ -4229,7 +4364,6 @@ function StorageStatusBadge({ status }: { status: string }) {
   );
 }
 
-
 function PlanPriceWarningModal({
   message,
   onCancel,
@@ -4261,8 +4395,8 @@ function PlanPriceWarningModal({
         </div>
 
         <div className="mt-6 rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-          Du kan spara ändå om du vet att priset stämmer, till exempel vid kampanj,
-          familjedelning eller arbetsgivarförmån.
+          Du kan spara ändå om du vet att priset stämmer, till exempel vid
+          kampanj, familjedelning eller arbetsgivarförmån.
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
@@ -4685,7 +4819,7 @@ function ServiceSuggestionDropdown({
                 {service.displayName}
               </p>
               <p className="text-xs font-semibold text-slate-500">
-                {service.category}
+                {getBenefitlyCategory(service.category, service.displayName)}
               </p>
             </div>
 
@@ -4771,7 +4905,8 @@ function RecognizedServiceBox({
             onClick={onUseCategory}
             className="rounded-2xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800"
           >
-            Använd kategori: {service.category}
+            Använd kategori:{" "}
+            {getBenefitlyCategory(service.category, service.displayName)}
           </button>
 
           <button
@@ -4804,7 +4939,8 @@ function InlinePlanPriceWarning({ message }: { message: string }) {
           </p>
           <p className="mt-1 text-sm font-bold leading-relaxed">{message}</p>
           <p className="mt-2 text-xs font-semibold text-amber-800">
-            Du kan ändå spara om priset stämmer, till exempel vid kampanj, delad kostnad eller arbetsgivarförmån.
+            Du kan ändå spara om priset stämmer, till exempel vid kampanj, delad
+            kostnad eller arbetsgivarförmån.
           </p>
         </div>
       </div>
@@ -5058,7 +5194,6 @@ function getServiceIcon(subscription: Subscription) {
   };
 }
 
-
 type PlanReference = {
   planName: string;
   priceLevel: "budget" | "standard" | "premium" | "highest";
@@ -5100,7 +5235,9 @@ function getPriceLevelClassName(level: PlanReference["priceLevel"]) {
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
-function getPlanReferencesForService(subscription: Subscription): PlanReference[] {
+function getPlanReferencesForService(
+  subscription: Subscription,
+): PlanReference[] {
   const normalizedName = normalizeText(subscription.name);
 
   if (normalizedName.includes("netflix")) {
@@ -5291,7 +5428,10 @@ function getPlanReferencesForService(subscription: Subscription): PlanReference[
     ];
   }
 
-  if (normalizedName.includes("microsoft 365") || normalizedName.includes("office")) {
+  if (
+    normalizedName.includes("microsoft 365") ||
+    normalizedName.includes("office")
+  ) {
     return [
       {
         planName: "Personal",
@@ -5350,7 +5490,8 @@ function getSelectedPlanPriceRange(subscription: Subscription) {
   return (
     Object.values(activePlanPriceRangeMap).find(
       (range) =>
-        normalizeText(range.serviceDisplayName) === normalizeText(serviceName) &&
+        normalizeText(range.serviceDisplayName) ===
+          normalizeText(serviceName) &&
         normalizeText(range.planName) === selectedPlanText &&
         range.currency === activeCurrency &&
         range.billingPeriod === "monthly",
@@ -5367,8 +5508,12 @@ function getSelectedPlanReference(subscription: Subscription) {
   }
 
   return (
-    planReferences.find((plan) => normalizeText(plan.planName) === selectedPlan) ??
-    planReferences.find((plan) => selectedPlan.includes(normalizeText(plan.planName))) ??
+    planReferences.find(
+      (plan) => normalizeText(plan.planName) === selectedPlan,
+    ) ??
+    planReferences.find((plan) =>
+      selectedPlan.includes(normalizeText(plan.planName)),
+    ) ??
     null
   );
 }
@@ -5444,7 +5589,12 @@ function getDraftPlanPriceWarningMessage({
 }) {
   const priceAsNumber = Math.round(Number(price));
 
-  if (!name || price === "" || Number.isNaN(priceAsNumber) || priceAsNumber < 0) {
+  if (
+    !name ||
+    price === "" ||
+    Number.isNaN(priceAsNumber) ||
+    priceAsNumber < 0
+  ) {
     return null;
   }
 
@@ -5466,8 +5616,10 @@ function getPlanPriceWarningMessage(subscription: Subscription) {
   const selectedPlan = getSelectedPlanReference(subscription);
   const selectedPlanRange = getSelectedPlanPriceRange(subscription);
   const planName = selectedPlanRange?.planName ?? selectedPlan?.planName;
-  const minPrice = selectedPlanRange?.typicalMinPrice ?? selectedPlan?.roughMonthlyMin;
-  const maxPrice = selectedPlanRange?.typicalMaxPrice ?? selectedPlan?.roughMonthlyMax;
+  const minPrice =
+    selectedPlanRange?.typicalMinPrice ?? selectedPlan?.roughMonthlyMin;
+  const maxPrice =
+    selectedPlanRange?.typicalMaxPrice ?? selectedPlan?.roughMonthlyMax;
 
   if (!sanity || !planName || !minPrice || !maxPrice) {
     return null;
@@ -5491,7 +5643,8 @@ function getPlanPosition(subscription: Subscription) {
   }
 
   const index = planReferences.findIndex(
-    (plan) => normalizeText(plan.planName) === normalizeText(selectedPlan.planName),
+    (plan) =>
+      normalizeText(plan.planName) === normalizeText(selectedPlan.planName),
   );
 
   if (index < 0) {
@@ -5538,7 +5691,11 @@ function getBenefitlyScore(subscription: Subscription) {
     score -= 2;
   }
 
-  if (planPosition && planPosition.cheaperPlans.length > 0 && subscription.usage !== "Ofta") {
+  if (
+    planPosition &&
+    planPosition.cheaperPlans.length > 0 &&
+    subscription.usage !== "Ofta"
+  ) {
     score -= 10;
   }
 
@@ -5578,41 +5735,64 @@ function getSmartCardInsights(subscription: Subscription) {
   const planPosition = getPlanPosition(subscription);
 
   if (subscription.usage === "Ofta") {
-    insights.push("Du använder tjänsten ofta, vilket gör den lättare att motivera.");
+    insights.push(
+      "Du använder tjänsten ofta, vilket gör den lättare att motivera.",
+    );
   } else if (subscription.usage === "Ibland") {
-    insights.push("Du använder tjänsten ibland. Kontrollera om vald plan matchar behovet.");
+    insights.push(
+      "Du använder tjänsten ibland. Kontrollera om vald plan matchar behovet.",
+    );
   } else {
-    insights.push("Tjänsten används sällan, så den är värd att kontrollera först.");
+    insights.push(
+      "Tjänsten används sällan, så den är värd att kontrollera först.",
+    );
   }
 
   if (priceSanity?.level === "low") {
-    insights.push("Priset verkar ovanligt lågt. Kontrollera om det är kampanj, delad kostnad eller fel period.");
+    insights.push(
+      "Priset verkar ovanligt lågt. Kontrollera om det är kampanj, delad kostnad eller fel period.",
+    );
   } else if (priceSanity) {
-    insights.push("Priset sticker ut. Kontrollera att beloppet och betalperioden är rätt.");
+    insights.push(
+      "Priset sticker ut. Kontrollera att beloppet och betalperioden är rätt.",
+    );
   }
 
   if (planReferences.length > 1) {
     if (!subscription.plan) {
       insights.push("Lägg till plan för att få bättre analys och jämförelse.");
     } else if (selectedPlanReference && planPosition) {
-      if (planPosition.cheaperPlans.length > 0 && subscription.usage !== "Ofta") {
-        insights.push("Det finns billigare prisnivåer. Jämför innehållet innan du byter.");
+      if (
+        planPosition.cheaperPlans.length > 0 &&
+        subscription.usage !== "Ofta"
+      ) {
+        insights.push(
+          "Det finns billigare prisnivåer. Jämför innehållet innan du byter.",
+        );
       } else if (planPosition.cheaperPlans.length > 0) {
-        insights.push("Du har inte lägsta prisnivån, men hög användning kan göra planen rimlig.");
+        insights.push(
+          "Du har inte lägsta prisnivån, men hög användning kan göra planen rimlig.",
+        );
       } else {
         insights.push("Du verkar ha en låg prisnivå för den här tjänsten.");
       }
     } else {
-      insights.push("Planen känns inte igen exakt. Välj en vanlig plan om du vill jämföra bättre.");
+      insights.push(
+        "Planen känns inte igen exakt. Välj en vanlig plan om du vill jämföra bättre.",
+      );
     }
   }
 
   if (subscription.benefits.length >= 10) {
-    insights.push(`Benefitly känner till ${subscription.benefits.length} innehållspunkter för den här planen.`);
+    insights.push(
+      `Benefitly känner till ${subscription.benefits.length} innehållspunkter för den här planen.`,
+    );
   }
 
   if (insights.length < 3) {
-    insights.push("Fler inlagda tjänster ger bättre överlapp och smartare råd.");
+    insights.push(
+      "Fler inlagda tjänster ger bättre överlapp och smartare råd.",
+    );
   }
 
   return insights.slice(0, 4);
@@ -5628,7 +5808,11 @@ function getSelectedPlanContent(subscription: Subscription) {
   return selectedPlanReference?.highlights ?? [];
 }
 
-function PlanComparisonSection({ subscription }: { subscription: Subscription }) {
+function PlanComparisonSection({
+  subscription,
+}: {
+  subscription: Subscription;
+}) {
   const [showPlans, setShowPlans] = useState(false);
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
   const planReferences = getPlanReferencesForService(subscription);
@@ -5654,7 +5838,8 @@ function PlanComparisonSection({ subscription }: { subscription: Subscription })
       {showPlans && (
         <div className="mt-3 space-y-3">
           <div className="rounded-2xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
-            Priserna visas som ungefärliga prisnivåer. Kontrollera alltid aktuellt pris hos leverantören.
+            Priserna visas som ungefärliga prisnivåer. Kontrollera alltid
+            aktuellt pris hos leverantören.
           </div>
 
           {planReferences.map((plan) => {
@@ -5662,27 +5847,38 @@ function PlanComparisonSection({ subscription }: { subscription: Subscription })
             const isExpanded = expandedPlan === plan.planName;
 
             return (
-              <div key={plan.planName} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div
+                key={plan.planName}
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+              >
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-black text-slate-950">{plan.planName}</p>
+                      <p className="font-black text-slate-950">
+                        {plan.planName}
+                      </p>
                       {isCurrentPlan && (
                         <span className="rounded-full bg-emerald-700 px-2.5 py-1 text-[11px] font-black text-white">
                           Din plan
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">{plan.roughPriceLabel}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {plan.roughPriceLabel}
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className={`rounded-full border px-3 py-1 text-xs font-black ${getPriceLevelClassName(plan.priceLevel)}`}>
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs font-black ${getPriceLevelClassName(plan.priceLevel)}`}
+                    >
                       {getPriceLevelLabel(plan.priceLevel)}
                     </span>
                     <button
                       type="button"
-                      onClick={() => setExpandedPlan(isExpanded ? null : plan.planName)}
+                      onClick={() =>
+                        setExpandedPlan(isExpanded ? null : plan.planName)
+                      }
                       className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 hover:bg-slate-100"
                     >
                       {isExpanded ? "Dölj" : "Visa innehåll"}
@@ -5693,7 +5889,10 @@ function PlanComparisonSection({ subscription }: { subscription: Subscription })
                 {isExpanded && (
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {plan.highlights.map((highlight) => (
-                      <div key={highlight} className="rounded-2xl bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                      <div
+                        key={highlight}
+                        className="rounded-2xl bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+                      >
                         ✓ {highlight}
                       </div>
                     ))}
@@ -5708,13 +5907,19 @@ function PlanComparisonSection({ subscription }: { subscription: Subscription })
   );
 }
 
-function SelectedPlanContentSection({ subscription }: { subscription: Subscription }) {
+function SelectedPlanContentSection({
+  subscription,
+}: {
+  subscription: Subscription;
+}) {
   const [showContent, setShowContent] = useState(false);
   const [showAllContent, setShowAllContent] = useState(false);
   const previewCount = 6;
   const content = getSelectedPlanContent(subscription);
   const hasManyItems = content.length > previewCount;
-  const visibleItems = showAllContent ? content : content.slice(0, previewCount);
+  const visibleItems = showAllContent
+    ? content
+    : content.slice(0, previewCount);
 
   if (content.length === 0) {
     return null;
@@ -5737,7 +5942,11 @@ function SelectedPlanContentSection({ subscription }: { subscription: Subscripti
         onClick={handleToggleContent}
         className="flex w-full items-center justify-between text-left text-sm font-bold text-slate-700"
       >
-        <span>{subscription.plan ? `Innehåll i ${subscription.plan}` : "Förmåner och innehåll"}</span>
+        <span>
+          {subscription.plan
+            ? `Innehåll i ${subscription.plan}`
+            : "Förmåner och innehåll"}
+        </span>
         <span className="text-xs font-black text-slate-500">
           {showContent
             ? "Dölj ▲"
@@ -5772,7 +5981,9 @@ function SelectedPlanContentSection({ subscription }: { subscription: Subscripti
               onClick={() => setShowAllContent(!showAllContent)}
               className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-100"
             >
-              {showAllContent ? "Visa färre" : `Visa alla ${content.length} punkter`}
+              {showAllContent
+                ? "Visa färre"
+                : `Visa alla ${content.length} punkter`}
             </button>
           )}
         </div>
@@ -5803,8 +6014,10 @@ function SubscriptionCard({
   const scoreMeta = getBenefitlyScoreMeta(benefitlyScore);
   const smartInsights = getSmartCardInsights(subscription);
   const planPriceWarningMessage = getPlanPriceWarningMessage(subscription);
-  const [isPlanPriceWarningHidden, setIsPlanPriceWarningHidden] = useState(false);
-  const shouldShowPlanPriceWarning = Boolean(planPriceWarningMessage) && !isPlanPriceWarningHidden;
+  const [isPlanPriceWarningHidden, setIsPlanPriceWarningHidden] =
+    useState(false);
+  const shouldShowPlanPriceWarning =
+    Boolean(planPriceWarningMessage) && !isPlanPriceWarningHidden;
 
   return (
     <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -5820,7 +6033,7 @@ function SubscriptionCard({
             <div>
               <h3 className="text-lg font-black">{subscription.name}</h3>
               <p className="mt-1 text-sm text-slate-500">
-                {subscription.category}
+                {getBenefitlyCategory(subscription.category, subscription.name)}
                 {subscription.plan ? ` • ${subscription.plan}` : ""}
               </p>
               <p className="mt-1 text-sm text-slate-700">
@@ -5874,7 +6087,9 @@ function SubscriptionCard({
 
         <div className="mt-4 grid gap-3 md:grid-cols-[150px_1fr]">
           <div className={`rounded-2xl border p-4 ${scoreMeta.className}`}>
-            <p className="text-xs font-black uppercase tracking-wide opacity-80">Benefitly Score</p>
+            <p className="text-xs font-black uppercase tracking-wide opacity-80">
+              Benefitly Score
+            </p>
             <p className="mt-1 text-3xl font-black">{benefitlyScore}</p>
             <p className="mt-1 text-xs font-black">{scoreMeta.label}</p>
           </div>
@@ -5885,7 +6100,10 @@ function SubscriptionCard({
             </p>
             <ul className="mt-2 space-y-1.5">
               {smartInsights.map((insight) => (
-                <li key={insight} className="flex gap-2 text-sm font-semibold text-slate-800">
+                <li
+                  key={insight}
+                  className="flex gap-2 text-sm font-semibold text-slate-800"
+                >
                   <span className="text-emerald-700">•</span>
                   <span>{insight}</span>
                 </li>
@@ -5925,7 +6143,9 @@ function SubscriptionCard({
           <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
             Rekommenderad åtgärd
           </p>
-          <p className="mt-1 text-sm font-bold text-slate-800">{recommendedAction}</p>
+          <p className="mt-1 text-sm font-bold text-slate-800">
+            {recommendedAction}
+          </p>
         </div>
       </div>
 
