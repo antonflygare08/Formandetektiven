@@ -70,6 +70,16 @@ type PendingPlanPriceWarning = {
   shouldAddAnother: boolean;
 };
 
+type SavingsOpportunity = {
+  id: string;
+  kind: "direct" | "plan" | "overlap";
+  title: string;
+  description: string;
+  monthlyAmount?: number;
+  yearlyAmount?: number;
+  status: string;
+};
+
 type LanguageCode = "sv" | "en" | "de";
 type CurrencyCode = "SEK" | "EUR" | "USD" | "GBP" | "DKK" | "NOK";
 
@@ -1244,6 +1254,7 @@ export default function Home() {
   const [hasSkippedGuide, setHasSkippedGuide] = useState(false);
   const [showPremiumDetails, setShowPremiumDetails] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSavingsSheet, setShowSavingsSheet] = useState(false);
   const [analysisSubscription, setAnalysisSubscription] = useState<Subscription | null>(null);
   const [compareSubscription, setCompareSubscription] = useState<Subscription | null>(null);
   const [greeting, setGreeting] = useState("Hej");
@@ -1657,9 +1668,13 @@ export default function Home() {
     subscriptions,
     overlapInsights,
   );
-  const healthyServices = subscriptions.filter(
-    (item) => getBenefitlyScore(item) >= 85,
-  ).length;
+  const savingsOpportunities = getSavingsOpportunities(
+    subscriptions,
+    overlapInsights,
+  );
+  const additionalPlanSavings = savingsOpportunities
+    .filter((opportunity) => opportunity.kind === "plan")
+    .reduce((sum, opportunity) => sum + (opportunity.monthlyAmount ?? 0), 0);
 
   function resetForm() {
     setName("");
@@ -2004,7 +2019,7 @@ export default function Home() {
               <nav className="hidden items-center gap-1 lg:flex">
                 <a href="#overview" className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-800">Översikt</a>
                 <a href="#services-section" className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Tjänster</a>
-                <a href="#inbox" className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Inbox</a>
+                <a href="#assistant" className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Assistent</a>
               </nav>
 
               <div className="flex items-center gap-2">
@@ -2038,7 +2053,7 @@ export default function Home() {
                     </div>
 
                     <div className="border-t border-white/15 px-4 py-3 sm:border-l sm:border-t-0 sm:px-5">
-                      <p className="text-xs font-black uppercase tracking-wide text-emerald-100">Möjlig besparing</p>
+                      <p className="text-xs font-black uppercase tracking-wide text-emerald-100">Besparing att undersöka</p>
                       <p className="mt-1 text-2xl font-black tracking-tight text-emerald-50 sm:text-3xl">
                         {formatCurrency(possibleMonthlySavings)}<span className="ml-1 text-sm font-bold text-emerald-100">/mån</span>
                       </p>
@@ -2048,7 +2063,7 @@ export default function Home() {
                     </div>
 
                     <div className="border-t border-white/15 px-4 py-3 sm:border-l sm:border-t-0 sm:px-5">
-                      <p className="text-xs font-black uppercase tracking-wide text-emerald-100">Efter möjlig besparing</p>
+                      <p className="text-xs font-black uppercase tracking-wide text-emerald-100">Efter möjlig åtgärd</p>
                       <p className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
                         {formatCurrency(monthlyCostAfterPossibleSavings)}<span className="ml-1 text-sm font-bold text-emerald-100">/mån</span>
                       </p>
@@ -2079,27 +2094,49 @@ export default function Home() {
                       Öppna tjänster →
                     </a>
                   </div>
+
+                  {subscriptions.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSavingsSheet(true)}
+                      className="mt-3 flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left text-sm font-black text-emerald-50 transition hover:bg-white/10 hover:text-white"
+                    >
+                      <span>
+                        Visa {savingsOpportunities.length} besparingsmöjlighet{savingsOpportunities.length === 1 ? "" : "er"}
+                        {additionalPlanSavings > 0
+                          ? ` · ytterligare cirka ${formatCurrency(additionalPlanSavings)}/mån i planbyten`
+                          : ""}
+                      </span>
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
                   <div>
-                    <p className="text-sm font-bold text-slate-500">Behöver din uppmärksamhet</p>
-                    <p className="mt-1 text-2xl font-black text-amber-700">{thingsToCheck}</p>
+                    <p className="text-sm font-bold text-slate-500">
+                      {thingsToCheck === 0 ? "Status just nu" : "Behöver din uppmärksamhet"}
+                    </p>
+                    <p className={`mt-1 font-black ${thingsToCheck === 0 ? "text-base text-emerald-700" : "text-2xl text-amber-700"}`}>
+                      {thingsToCheck === 0 ? "Inget behöver ses över" : thingsToCheck}
+                    </p>
                   </div>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100">⚠️</span>
+                  <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${thingsToCheck === 0 ? "bg-emerald-100" : "bg-amber-100"}`}>
+                    {thingsToCheck === 0 ? "🎉" : "⚠️"}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
                   <div>
-                    <p className="text-sm font-bold text-slate-500">Ser bra ut</p>
-                    <p className="mt-1 text-2xl font-black text-emerald-700">{healthyServices} tjänster</p>
+                    <p className="text-sm font-bold text-slate-500">Tjänster analyserade</p>
+                    <p className={`mt-1 font-black text-emerald-700 ${subscriptions.length === 0 ? "text-base" : "text-2xl"}`}>
+                      {subscriptions.length === 0 ? "Ingen analys ännu" : `${subscriptions.length} tjänster`}
+                    </p>
                   </div>
                   <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100">✓</span>
                 </div>
               </div>
-
-              <PriorityActionsSection actions={dashboardActions.slice(1)} />
             </div>
 
             <BenefitlyScorePanel
@@ -2121,12 +2158,6 @@ export default function Home() {
             onSkipClick={handleSkipGuide}
           />
         )}
-
-        <BenefitlyInbox
-          subscriptions={subscriptions}
-          overlapInsights={overlapInsights}
-          onAddClick={() => setShowForm(true)}
-        />
 
         <section id="services-section" className="mt-10">
           <div className="mb-5 flex items-center justify-between gap-4">
@@ -2354,7 +2385,28 @@ export default function Home() {
             </div>
           )}
         </section>
+
+        <BenefitlyInbox
+          subscriptions={subscriptions}
+          overlapInsights={overlapInsights}
+        />
       </section>
+
+      {showSavingsSheet && (
+        <SavingsOpportunitiesSheet
+          opportunities={savingsOpportunities}
+          directMonthlySavings={possibleMonthlySavings}
+          additionalPlanSavings={additionalPlanSavings}
+          onClose={() => setShowSavingsSheet(false)}
+          onOpenAnalysis={(subscriptionId) => {
+            const subscription = subscriptions.find((item) => item.id === subscriptionId);
+            if (subscription) {
+              setAnalysisSubscription(subscription);
+              setShowSavingsSheet(false);
+            }
+          }}
+        />
+      )}
 
       {pendingPlanPriceWarning && (
         <PlanPriceWarningModal
@@ -2914,7 +2966,7 @@ function getOverlapInsights(subscriptions: Subscription[]): Insight[] {
   if (streamingServices.length >= 3) {
     insights.push({
       title: `${streamingServices.length} streamingtjänster att jämföra`,
-      text: `${formatOverlapNames(streamingServices)} finns i listan. Fundera på om alla används varje månad.`,
+      text: `Du har ${streamingServices.length} streamingtjänster: ${streamingServices.map((item) => item.name).join(", ")}. Kontrollera om alla används varje månad eller om någon kan pausas.`,
     });
   }
 
@@ -3395,6 +3447,14 @@ function getRecommendedAction(subscription: Subscription) {
     return "Kolla billigare plan eller alternativ.";
   }
 
+  if (hasName(subscription, ["amazon prime", "prime video"])) {
+    return "Kontrollera vilka Prime-förmåner du använder utöver video, till exempel leverans och andra medlemsförmåner.";
+  }
+
+  if (hasName(subscription, ["netflix"]) && getPlanText(subscription.plan).includes("premium")) {
+    return "Jämför Premium med Standard och kontrollera om du behöver 4K och flera samtidiga strömmar.";
+  }
+
   if (subscription.usage === "Ofta") {
     return "Behåll, men kontrollera att planen är rätt.";
   }
@@ -3869,6 +3929,129 @@ function getBenefitsByCategory(category: string) {
 }
 
 
+function getEstimatedPlanMonthlyPrice(
+  subscription: Subscription,
+  planReference: PlanReference,
+) {
+  const service = findKnownService(subscription.name);
+  const serviceName = service?.displayName ?? subscription.name;
+  const rangeKey = getPlanPriceRangeKey(
+    serviceName,
+    planReference.planName,
+    activeCurrency,
+    "monthly",
+  );
+  const databaseRange = activePlanPriceRangeMap[rangeKey];
+
+  if (databaseRange) {
+    return Math.round(
+      (databaseRange.typicalMinPrice + databaseRange.typicalMaxPrice) / 2,
+    );
+  }
+
+  if (
+    planReference.roughMonthlyMin !== undefined &&
+    planReference.roughMonthlyMax !== undefined
+  ) {
+    return Math.round(
+      (planReference.roughMonthlyMin + planReference.roughMonthlyMax) / 2,
+    );
+  }
+
+  return null;
+}
+
+function getSavingsOpportunities(
+  subscriptions: Subscription[],
+  overlapInsights: Insight[],
+): SavingsOpportunity[] {
+  const opportunities: SavingsOpportunity[] = [];
+
+  const directCandidates = subscriptions
+    .filter(
+      (subscription) =>
+        subscription.usage === "Sällan" &&
+        !isConfirmedVeryLowCost(subscription) &&
+        (getPriceSanity(subscription)?.level !== "low" ||
+          subscription.priceConfirmed),
+    )
+    .sort((a, b) => getMonthlyPrice(b) - getMonthlyPrice(a));
+
+  const directCandidateIds = new Set(
+    directCandidates.map((subscription) => subscription.id),
+  );
+
+  directCandidates.forEach((subscription) => {
+    const planPosition = getPlanPosition(subscription);
+    const cheaperPlan = planPosition?.cheaperPlans.at(-1);
+    const secondaryPlanText = cheaperPlan
+      ? ` Om du vill behålla tjänsten kan ${cheaperPlan.planName} vara ett billigare alternativ.`
+      : "";
+
+    opportunities.push({
+      id: `direct-${subscription.id}`,
+      kind: "direct",
+      title: subscription.name,
+      description: `Du använder tjänsten sällan. Kontrollera först om du verkligen behöver den. Om du pausar eller säger upp den kan hela kostnaden försvinna.${secondaryPlanText}`,
+      monthlyAmount: Math.round(getMonthlyPrice(subscription)),
+      yearlyAmount: Math.round(getYearlyPrice(subscription)),
+      status: "Kan pausas eller sägas upp",
+    });
+  });
+
+  subscriptions.forEach((subscription) => {
+    if (
+      subscription.usage === "Ofta" ||
+      directCandidateIds.has(subscription.id)
+    ) {
+      return;
+    }
+
+    const planPosition = getPlanPosition(subscription);
+    const cheaperPlan = planPosition?.cheaperPlans.at(-1);
+
+    if (!cheaperPlan) {
+      return;
+    }
+
+    const estimatedCheaperPrice = getEstimatedPlanMonthlyPrice(
+      subscription,
+      cheaperPlan,
+    );
+    const currentMonthlyPrice = getMonthlyPrice(subscription);
+    const monthlyAmount = estimatedCheaperPrice
+      ? Math.max(0, Math.round(currentMonthlyPrice - estimatedCheaperPrice))
+      : undefined;
+
+    if (monthlyAmount !== undefined && monthlyAmount <= 0) {
+      return;
+    }
+
+    opportunities.push({
+      id: `plan-${subscription.id}`,
+      kind: "plan",
+      title: `${subscription.name}: ${subscription.plan} → ${cheaperPlan.planName}`,
+      description: `En billigare plan kan räcka, men kontrollera först vilka funktioner du behöver. Prisuppskattningen är ungefärlig och ska alltid verifieras hos leverantören.`,
+      monthlyAmount,
+      yearlyAmount:
+        monthlyAmount !== undefined ? monthlyAmount * 12 : undefined,
+      status: "Behöver bekräftas",
+    });
+  });
+
+  overlapInsights.forEach((insight, index) => {
+    opportunities.push({
+      id: `overlap-${index}`,
+      kind: "overlap",
+      title: insight.title,
+      description: insight.text,
+      status: "Jämför innan du ändrar",
+    });
+  });
+
+  return opportunities;
+}
+
 type DashboardAction = {
   id: string;
   title: string;
@@ -4008,6 +4191,7 @@ function PriorityActionsSection({ actions }: { actions: DashboardAction[] }) {
 function BenefitlyScorePanel({ score, subscriptions, checkItems }: { score: number; subscriptions: Subscription[]; checkItems: CheckItem[] }) {
   const planMissing = subscriptions.filter((item) => !item.plan?.trim()).length;
   const nextSteps: string[] = [];
+  const hasServices = subscriptions.length > 0;
 
   if (planMissing > 0) {
     nextSteps.push(`Lägg till plan på ${planMissing} tjänst${planMissing === 1 ? "" : "er"}`);
@@ -4022,55 +4206,105 @@ function BenefitlyScorePanel({ score, subscriptions, checkItems }: { score: numb
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-black text-emerald-800">Benefitly Score</p>
-          <p className="mt-1 text-xs font-semibold text-slate-500">Din kontroll just nu</p>
+          <p className="mt-1 text-xs font-semibold text-slate-500">
+            {hasServices ? "Din kontroll just nu" : "Din första score väntar"}
+          </p>
         </div>
-        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800">{score}/100</span>
+        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-800">
+          {hasServices ? `${score}/100` : "Inte beräknad"}
+        </span>
       </div>
 
-      <div className="mx-auto mt-5 flex h-32 w-32 items-center justify-center rounded-full bg-[conic-gradient(#059669_var(--score),#d1fae5_0)] p-2.5" style={{ "--score": `${score}%` } as React.CSSProperties}>
-        <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white">
-          <p className="text-4xl font-black text-emerald-800">{score}</p>
-          <p className="text-xs font-bold text-slate-500">av 100</p>
-        </div>
-      </div>
+      {hasServices ? (
+        <>
+          <div className="mx-auto mt-5 flex h-32 w-32 items-center justify-center rounded-full bg-[conic-gradient(#059669_var(--score),#d1fae5_0)] p-2.5" style={{ "--score": `${score}%` } as React.CSSProperties}>
+            <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white">
+              <p className="text-4xl font-black text-emerald-800">{score}</p>
+              <p className="text-xs font-bold text-slate-500">av 100</p>
+            </div>
+          </div>
 
-      <p className="mt-4 text-center text-sm font-black leading-relaxed text-slate-900">{getBenefitlyScoreText(score)}</p>
+          <p className="mt-4 text-center text-sm font-black leading-relaxed text-slate-900">{getBenefitlyScoreText(score)}</p>
 
-      {nextSteps.length > 0 ? (
-        <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-          <p className="text-xs font-black uppercase tracking-wide text-slate-500">Nästa nivå</p>
-          <ul className="mt-3 space-y-2 text-sm font-semibold text-slate-700">
-            {nextSteps.map((step) => <li key={step}>○ {step}</li>)}
-          </ul>
-        </div>
+          {nextSteps.length > 0 ? (
+            <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Nästa nivå</p>
+              <ul className="mt-3 space-y-2 text-sm font-semibold text-slate-700">
+                {nextSteps.map((step) => <li key={step}>○ {step}</li>)}
+              </ul>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800">✓ All grunddata ser komplett ut.</div>
+          )}
+        </>
       ) : (
-        <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800">✓ All grunddata ser komplett ut.</div>
+        <div className="mt-5 rounded-3xl bg-emerald-50 p-4 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-[7px] border-emerald-100 bg-white text-2xl">🔎</div>
+          <p className="mt-3 text-base font-black text-emerald-950">Lägg till minst 3 tjänster</p>
+          <p className="mt-1 text-sm font-semibold leading-relaxed text-emerald-900">
+            Då kan Benefitly räkna ut din första score och visa hur bra kontroll du har.
+          </p>
+        </div>
       )}
     </aside>
   );
 }
 
-function BenefitlyInbox({ subscriptions, overlapInsights, onAddClick }: { subscriptions: Subscription[]; overlapInsights: Insight[]; onAddClick: () => void }) {
-  const messages = getDashboardActions(subscriptions, overlapInsights);
+function BenefitlyInbox({ subscriptions, overlapInsights }: { subscriptions: Subscription[]; overlapInsights: Insight[] }) {
+  const messages = getDashboardActions(subscriptions, overlapInsights).slice(1);
+  const onboardingMessages: DashboardAction[] = [
+    {
+      id: "onboarding-streaming",
+      title: "Lägg till streaming",
+      subtitle: "Börja med en tjänst du använder ofta.",
+      badge: "Steg 1",
+      tone: "green",
+    },
+    {
+      id: "onboarding-mobile",
+      title: "Lägg till mobil eller bredband",
+      subtitle: "Då kan Benefitly börja jämföra återkommande kostnader.",
+      badge: "Steg 2",
+      tone: "green",
+    },
+    {
+      id: "onboarding-membership",
+      title: "Lägg till medlemskap eller kort",
+      subtitle: "Det hjälper Benefitly att hitta förmåner och överlapp.",
+      badge: "Steg 3",
+      tone: "green",
+    },
+  ];
+  const assistantMessages = subscriptions.length === 0 ? onboardingMessages : messages;
+
+  if (subscriptions.length > 0 && assistantMessages.length === 0) {
+    return null;
+  }
+
   return (
-    <section id="inbox" className="mt-8 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-5 shadow-sm">
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-        <div>
-          <p className="text-sm font-black text-emerald-800">Benefitlys Inbox</p>
-          <h2 className="mt-1 text-2xl font-black">Dina personliga rekommendationer</h2>
-        </div>
-        <button onClick={onAddClick} className="rounded-2xl bg-emerald-700 px-4 py-2 text-sm font-black text-white hover:bg-emerald-800">+ Lägg till tjänst</button>
+    <section id="assistant" className="mt-8 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
+      <div>
+        <p className="text-sm font-black text-emerald-800">Benefitly-assistenten</p>
+        <h2 className="mt-1 text-xl font-black">
+          {subscriptions.length === 0 ? "Så kommer du igång" : "Det här har jag hittat åt dig"}
+        </h2>
+        <p className="mt-1 text-sm font-medium text-slate-600">
+          {subscriptions.length === 0
+            ? "Lägg till några vanliga tjänster så börjar analysen direkt."
+            : "Rekommendationerna uppdateras när du ändrar dina tjänster."}
+        </p>
       </div>
-      <div className="mt-4 grid gap-3 md:grid-cols-3">
-        {messages.map((message) => (
-          <a key={message.id} href="#services-section" className="rounded-2xl border border-white bg-white p-4 shadow-sm transition hover:-translate-y-0.5">
-            <div className="flex items-center gap-3">
-              <span className={`h-2.5 w-2.5 rounded-full ${message.tone === "red" ? "bg-red-500" : message.tone === "amber" ? "bg-amber-500" : "bg-emerald-500"}`} />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-black text-slate-950">{message.title}</p>
-                <p className="mt-1 truncate text-xs font-semibold text-slate-500">{message.badge}</p>
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
+        {assistantMessages.map((message) => (
+          <a key={message.id} href="#services-section" className="rounded-2xl border border-white bg-white p-3 shadow-sm transition hover:-translate-y-0.5">
+            <div className="flex items-start gap-3">
+              <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${message.tone === "red" ? "bg-red-500" : message.tone === "amber" ? "bg-amber-500" : "bg-emerald-500"}`} />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-black text-slate-950">{message.title}</p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-500">{message.subtitle}</p>
+                <p className="mt-2 text-[11px] font-black uppercase tracking-wide text-emerald-700">{message.badge}</p>
               </div>
-              <span className="ml-auto text-slate-400">›</span>
+              <span className="text-slate-400">›</span>
             </div>
           </a>
         ))}
@@ -4136,6 +4370,217 @@ function CompactSubscriptionRow({
           <button onClick={() => onDelete(subscription.id)} className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700">Ta bort</button>
         </div>
       )}
+    </div>
+  );
+}
+
+function SavingsOpportunitiesSheet({
+  opportunities,
+  directMonthlySavings,
+  additionalPlanSavings,
+  onClose,
+  onOpenAnalysis,
+}: {
+  opportunities: SavingsOpportunity[];
+  directMonthlySavings: number;
+  additionalPlanSavings: number;
+  onClose: () => void;
+  onOpenAnalysis: (subscriptionId: string) => void;
+}) {
+  const directOpportunities = opportunities.filter(
+    (opportunity) => opportunity.kind === "direct",
+  );
+  const planOpportunities = opportunities.filter(
+    (opportunity) => opportunity.kind === "plan",
+  );
+  const overlapOpportunities = opportunities.filter(
+    (opportunity) => opportunity.kind === "overlap",
+  );
+
+  function getSubscriptionId(opportunity: SavingsOpportunity) {
+    if (opportunity.kind === "direct") {
+      return opportunity.id.replace("direct-", "");
+    }
+
+    if (opportunity.kind === "plan") {
+      return opportunity.id.replace("plan-", "");
+    }
+
+    return null;
+  }
+
+  function OpportunityCard({ opportunity }: { opportunity: SavingsOpportunity }) {
+    const subscriptionId = getSubscriptionId(opportunity);
+    const tone =
+      opportunity.kind === "direct"
+        ? "border-emerald-200 bg-emerald-50"
+        : opportunity.kind === "plan"
+          ? "border-amber-200 bg-amber-50"
+          : "border-sky-200 bg-sky-50";
+
+    return (
+      <div className={`min-w-0 overflow-hidden rounded-3xl border p-4 ${tone}`}>
+        <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+          <div className="min-w-0">
+            <p className="break-words font-black text-slate-950">
+              {opportunity.title}
+            </p>
+            <p className="mt-1 break-words text-sm font-medium leading-relaxed text-slate-700">
+              {opportunity.description}
+            </p>
+          </div>
+
+          {opportunity.monthlyAmount !== undefined && (
+            <div className="min-w-0 text-left sm:shrink-0 sm:text-right">
+              <p className="break-words text-lg font-black text-emerald-800">
+                {opportunity.kind === "plan" ? "Spara " : ""}
+                {formatCurrency(opportunity.monthlyAmount)}/mån
+              </p>
+              <p className="text-xs font-bold text-slate-500">
+                {formatCurrency(
+                  opportunity.yearlyAmount ??
+                    opportunity.monthlyAmount * 12,
+                )}{" "}
+                per år
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-3 flex min-w-0 flex-col gap-2 border-t border-black/5 pt-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="w-fit max-w-full break-words rounded-full bg-white/80 px-3 py-1 text-xs font-black text-slate-700">
+            {opportunity.status}
+          </span>
+
+          {subscriptionId && (
+            <button
+              type="button"
+              onClick={() => onOpenAnalysis(subscriptionId)}
+              className="inline-flex w-fit max-w-full items-center gap-1 self-start whitespace-nowrap rounded-xl bg-white/80 px-3 py-2 text-xs font-black text-emerald-800 hover:bg-white hover:underline sm:self-auto"
+            >
+              Visa analys <span aria-hidden="true">→</span>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 px-3 pt-12 backdrop-blur-sm sm:px-6"
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target) {
+          onClose();
+        }
+      }}
+    >
+      <section className="max-h-[90vh] w-full max-w-4xl overflow-x-hidden overflow-y-auto rounded-t-[2rem] bg-white p-5 pr-6 shadow-2xl sm:rounded-[2rem] sm:p-6 sm:pr-8">
+        <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-slate-200 sm:hidden" />
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
+              Benefitlys sparöversikt
+            </p>
+            <h2 className="mt-1 text-2xl font-black sm:text-3xl">
+              Möjliga besparingar
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm font-medium text-slate-600">
+              Benefitly skiljer på kostnader som kan tas bort och planbyten som först behöver bekräftas. Beloppen är vägledning, inte löften.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-slate-100 px-3 py-1 text-sm font-black text-slate-700 hover:bg-slate-200"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-3xl bg-emerald-950 p-4 text-white">
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-100">
+              Besparing att undersöka
+            </p>
+            <p className="mt-1 text-2xl font-black">
+              {formatCurrency(directMonthlySavings)}/mån
+            </p>
+            <p className="mt-1 text-xs font-semibold text-emerald-100">
+              Tjänster som används sällan och kan pausas eller sägas upp.
+            </p>
+          </div>
+          <div className="rounded-3xl bg-amber-50 p-4 text-amber-950 ring-1 ring-amber-200">
+            <p className="text-xs font-black uppercase tracking-wide text-amber-700">
+              Ytterligare planpotential
+            </p>
+            <p className="mt-1 text-2xl font-black">
+              {additionalPlanSavings > 0
+                ? `${formatCurrency(additionalPlanSavings)}/mån`
+                : "Ingen summa ännu"}
+            </p>
+            <p className="mt-1 text-xs font-semibold text-amber-800">
+              Kräver att en billigare plan fortfarande täcker dina behov.
+            </p>
+          </div>
+        </div>
+
+        {opportunities.length === 0 ? (
+          <div className="mt-5 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+            <p className="text-3xl">🎉</p>
+            <h3 className="mt-3 text-xl font-black">Inga tydliga besparingar hittade ännu</h3>
+            <p className="mx-auto mt-2 max-w-xl text-sm font-medium text-slate-600">
+              Lägg till fler tjänster, plannivåer och användning så får Benefitly bättre underlag.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-6 space-y-6">
+            {directOpportunities.length > 0 && (
+              <div>
+                <h3 className="text-lg font-black">Kan pausas eller sägas upp</h3>
+                <p className="mt-1 text-sm text-slate-500">Hela kostnaden kan försvinna, men du bestämmer efter kontroll.</p>
+                <div className="mt-3 space-y-3">
+                  {directOpportunities.map((opportunity) => (
+                    <OpportunityCard key={opportunity.id} opportunity={opportunity} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {planOpportunities.length > 0 && (
+              <div>
+                <h3 className="text-lg font-black">Billigare planer att överväga</h3>
+                <p className="mt-1 text-sm text-slate-500">Kontrollera funktioner som 4K, lagring, skärmar eller familjedelning innan byte.</p>
+                <div className="mt-3 space-y-3">
+                  {planOpportunities.map((opportunity) => (
+                    <OpportunityCard key={opportunity.id} opportunity={opportunity} />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {overlapOpportunities.length > 0 && (
+              <div>
+                <h3 className="text-lg font-black">Överlapp att jämföra</h3>
+                <p className="mt-1 text-sm text-slate-500">Här visas ingen totalsumma förrän Benefitly vet vilken tjänst du kan avstå från.</p>
+                <div className="mt-3 space-y-3">
+                  {overlapOpportunities.map((opportunity) => (
+                    <OpportunityCard key={opportunity.id} opportunity={opportunity} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-6 w-full rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-slate-800"
+        >
+          Stäng
+        </button>
+      </section>
     </div>
   );
 }
@@ -5474,33 +5919,30 @@ function FormField({
 
 function EmptyState({ onAddClick }: { onAddClick: () => void }) {
   return (
-    <div className="rounded-3xl border border-dashed border-emerald-300 bg-white p-10 text-center shadow-sm">
-      <p className="text-5xl">🔎</p>
-
-      <h3 className="mt-4 text-2xl font-black">
-        Lägg till dina första tjänster
-      </h3>
-
-      <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
-        Börja med 3 vanliga saker, till exempel streaming, mobil och gym eller
-        kort. Då kan Benefitly visa kostnader, förmåner, möjliga besparingar och
-        vad du bör kontrollera först.
-      </p>
-
-      <div className="mx-auto mt-5 grid max-w-xl gap-2 text-left text-sm font-bold text-slate-700 sm:grid-cols-3">
-        <div className="rounded-2xl bg-slate-50 px-3 py-2">1. Streaming</div>
-        <div className="rounded-2xl bg-slate-50 px-3 py-2">2. Mobil</div>
-        <div className="rounded-2xl bg-slate-50 px-3 py-2">
-          3. Gym eller kort
+    <div className="rounded-3xl border border-dashed border-emerald-300 bg-white p-6 shadow-sm">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-4">
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-3xl">🔎</span>
+          <div>
+            <h3 className="text-xl font-black">Lägg till dina första tjänster</h3>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-600">
+              Börja med tre saker du redan betalar för. Då kan Benefitly visa kostnader, förmåner, möjliga besparingar och vad du bör kontrollera först.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-700">
+              <span className="rounded-full bg-slate-100 px-3 py-1.5">📺 Streaming</span>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5">📱 Mobil</span>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5">💳 Medlemskap eller kort</span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <button
-        onClick={onAddClick}
-        className="mt-6 rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"
-      >
-        Lägg till första tjänsten
-      </button>
+        <button
+          onClick={onAddClick}
+          className="shrink-0 rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-800"
+        >
+          Lägg till första tjänsten
+        </button>
+      </div>
     </div>
   );
 }
