@@ -70,6 +70,32 @@ type PendingPlanPriceWarning = {
   shouldAddAnother: boolean;
 };
 
+type RecommendationKind =
+  | "cancel_or_pause"
+  | "plan_change"
+  | "overlap"
+  | "benefit_check"
+  | "price_check";
+
+type RecommendationConfidence = "confirmed" | "likely" | "needs_confirmation";
+
+type BenefitlyRecommendation = {
+  id: string;
+  kind: RecommendationKind;
+  confidence: RecommendationConfidence;
+  priority: number;
+  subscriptionId?: string;
+  title: string;
+  description: string;
+  reason: string;
+  monthlySaving?: number;
+  yearlySaving?: number;
+  questions: string[];
+  includeInConfirmedSavings: boolean;
+  status: string;
+  targetPlan?: string;
+};
+
 type SavingsOpportunity = {
   id: string;
   kind: "direct" | "plan" | "overlap";
@@ -103,7 +129,6 @@ let activePlanPriceRangeMap: PlanPriceRangeMap = {};
 
 const inputClassName =
   "w-full rounded-2xl border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-emerald-600";
-
 
 const categoryOptions = [
   "Underhållning",
@@ -162,17 +187,11 @@ function getBenefitlyCategory(
     return "Digitala tjänster";
   }
 
-  if (
-    normalizedCategory === "mobil" ||
-    normalizedCategory === "bredband"
-  ) {
+  if (normalizedCategory === "mobil" || normalizedCategory === "bredband") {
     return "Kommunikation";
   }
 
-  if (
-    normalizedCategory === "gym" ||
-    normalizedCategory === "hälsa"
-  ) {
+  if (normalizedCategory === "gym" || normalizedCategory === "hälsa") {
     return "Hälsa och träning";
   }
 
@@ -182,9 +201,7 @@ function getBenefitlyCategory(
     normalizedCategory === "mat och leverans"
   ) {
     if (
-      educationMemberships.some((name) =>
-        normalizedServiceName.includes(name),
-      )
+      educationMemberships.some((name) => normalizedServiceName.includes(name))
     ) {
       return "Utbildning";
     }
@@ -1135,7 +1152,11 @@ const initialSubscriptions: Subscription[] = [
     billingPeriod: "monthly",
     usage: "Sällan",
     plan: "",
-    benefits: getBenefitsForSubscription("Nordic Wellness", "Hälsa och träning", ""),
+    benefits: getBenefitsForSubscription(
+      "Nordic Wellness",
+      "Hälsa och träning",
+      "",
+    ),
   },
 ];
 
@@ -1255,19 +1276,22 @@ export default function Home() {
   const [showPremiumDetails, setShowPremiumDetails] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showSavingsSheet, setShowSavingsSheet] = useState(false);
-  const [analysisSubscription, setAnalysisSubscription] = useState<Subscription | null>(null);
-  const [compareSubscription, setCompareSubscription] = useState<Subscription | null>(null);
+  const [analysisSubscription, setAnalysisSubscription] =
+    useState<Subscription | null>(null);
+  const [compareSubscription, setCompareSubscription] =
+    useState<Subscription | null>(null);
   const [greeting, setGreeting] = useState("Hej");
   const [currency, setCurrency] = useState<CurrencyCode>("SEK");
-  const [catalogServices, setCatalogServices] =
-    useState<KnownService[]>(
-      knownServices.map((service) => ({
-        ...service,
-        category: getBenefitlyCategory(service.category, service.displayName),
-      })),
-    );
+  const [catalogServices, setCatalogServices] = useState<KnownService[]>(
+    knownServices.map((service) => ({
+      ...service,
+      category: getBenefitlyCategory(service.category, service.displayName),
+    })),
+  );
   const [planFeatureMap, setPlanFeatureMap] = useState<PlanFeatureMap>({});
-  const [planPriceRangeMap, setPlanPriceRangeMap] = useState<PlanPriceRangeMap>({});
+  const [planPriceRangeMap, setPlanPriceRangeMap] = useState<PlanPriceRangeMap>(
+    {},
+  );
   const [userId, setUserId] = useState<string | null>(null);
   const [isSavingSubscription, setIsSavingSubscription] = useState(false);
   const [storageStatus, setStorageStatus] = useState(
@@ -1459,7 +1483,10 @@ export default function Home() {
         services?.map((service) => ({
           displayName: service.display_name,
           matchNames: service.match_names ?? [service.display_name],
-          category: getBenefitlyCategory(service.category, service.display_name),
+          category: getBenefitlyCategory(
+            service.category,
+            service.display_name,
+          ),
           plans: plansByServiceId.get(service.id) ?? [],
           recommendedBillingPeriod:
             service.recommended_billing_period === "yearly"
@@ -1664,10 +1691,7 @@ export default function Home() {
     checkItems,
     possibleMonthlySavings,
   );
-  const dashboardActions = getDashboardActions(
-    subscriptions,
-    overlapInsights,
-  );
+  const dashboardActions = getDashboardActions(subscriptions, overlapInsights);
   const savingsOpportunities = getSavingsOpportunities(
     subscriptions,
     overlapInsights,
@@ -2011,27 +2035,58 @@ export default function Home() {
                   🔎
                 </div>
                 <div>
-                  <p className="text-lg font-black tracking-tight text-emerald-950">Benefitly</p>
-                  <p className="hidden text-xs font-medium text-slate-500 sm:block">Din smarta ekonomiassistent</p>
+                  <p className="text-lg font-black tracking-tight text-emerald-950">
+                    Benefitly
+                  </p>
+                  <p className="hidden text-xs font-medium text-slate-500 sm:block">
+                    Din smarta ekonomiassistent
+                  </p>
                 </div>
               </div>
 
               <nav className="hidden items-center gap-1 lg:flex">
-                <a href="#overview" className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-800">Översikt</a>
-                <a href="#services-section" className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Tjänster</a>
-                <a href="#assistant" className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100">Assistent</a>
+                <a
+                  href="#overview"
+                  className="rounded-xl bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-800"
+                >
+                  Översikt
+                </a>
+                <a
+                  href="#services-section"
+                  className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Tjänster
+                </a>
+                <a
+                  href="#assistant"
+                  className="rounded-xl px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Assistent
+                </a>
               </nav>
 
               <div className="flex items-center gap-2">
-                <button onClick={() => setShowSettings(true)} className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100">⚙️</button>
-                <div className="hidden sm:block"><StorageStatusBadge status={storageStatus} /></div>
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="rounded-full border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-100"
+                >
+                  ⚙️
+                </button>
+                <div className="hidden sm:block">
+                  <StorageStatusBadge status={storageStatus} />
+                </div>
               </div>
             </div>
           </div>
 
-          <section id="overview" className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
+          <section
+            id="overview"
+            className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_280px]"
+          >
             <div>
-              <p className="text-sm font-black uppercase tracking-wide text-emerald-700">Översikt</p>
+              <p className="text-sm font-black uppercase tracking-wide text-emerald-700">
+                Översikt
+              </p>
               <h1 className="mt-2 text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
                 {greeting} 👋
               </h1>
@@ -2043,9 +2098,14 @@ export default function Home() {
                 <div className="p-5 sm:p-6">
                   <div className="grid gap-0 overflow-hidden rounded-2xl border border-white/15 bg-white/5 sm:grid-cols-3">
                     <div className="px-4 py-3 sm:px-5">
-                      <p className="text-xs font-black uppercase tracking-wide text-emerald-100">Total kostnad</p>
+                      <p className="text-xs font-black uppercase tracking-wide text-emerald-100">
+                        Total kostnad
+                      </p>
                       <p className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
-                        {formatCurrency(monthlyCost)}<span className="ml-1 text-sm font-bold text-emerald-100">/mån</span>
+                        {formatCurrency(monthlyCost)}
+                        <span className="ml-1 text-sm font-bold text-emerald-100">
+                          /mån
+                        </span>
                       </p>
                       <p className="mt-0.5 text-xs font-bold text-emerald-100">
                         {formatCurrency(yearlyCost)} per år
@@ -2053,9 +2113,14 @@ export default function Home() {
                     </div>
 
                     <div className="border-t border-white/15 px-4 py-3 sm:border-l sm:border-t-0 sm:px-5">
-                      <p className="text-xs font-black uppercase tracking-wide text-emerald-100">Besparing att undersöka</p>
+                      <p className="text-xs font-black uppercase tracking-wide text-emerald-100">
+                        Besparing att undersöka
+                      </p>
                       <p className="mt-1 text-2xl font-black tracking-tight text-emerald-50 sm:text-3xl">
-                        {formatCurrency(possibleMonthlySavings)}<span className="ml-1 text-sm font-bold text-emerald-100">/mån</span>
+                        {formatCurrency(possibleMonthlySavings)}
+                        <span className="ml-1 text-sm font-bold text-emerald-100">
+                          /mån
+                        </span>
                       </p>
                       <p className="mt-0.5 text-xs font-bold text-emerald-100">
                         {formatCurrency(possibleYearlySavings)} per år
@@ -2063,9 +2128,14 @@ export default function Home() {
                     </div>
 
                     <div className="border-t border-white/15 px-4 py-3 sm:border-l sm:border-t-0 sm:px-5">
-                      <p className="text-xs font-black uppercase tracking-wide text-emerald-100">Efter möjlig åtgärd</p>
+                      <p className="text-xs font-black uppercase tracking-wide text-emerald-100">
+                        Efter möjlig åtgärd
+                      </p>
                       <p className="mt-1 text-2xl font-black tracking-tight sm:text-3xl">
-                        {formatCurrency(monthlyCostAfterPossibleSavings)}<span className="ml-1 text-sm font-bold text-emerald-100">/mån</span>
+                        {formatCurrency(monthlyCostAfterPossibleSavings)}
+                        <span className="ml-1 text-sm font-bold text-emerald-100">
+                          /mån
+                        </span>
                       </p>
                       <p className="mt-0.5 text-xs font-bold text-emerald-100">
                         {formatCurrency(yearlyCostAfterPossibleSavings)} per år
@@ -2076,21 +2146,30 @@ export default function Home() {
                   <div className="mt-3 flex flex-col gap-3 rounded-2xl bg-white/10 px-4 py-3 ring-1 ring-white/15 sm:flex-row sm:items-center sm:justify-between sm:px-5">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-emerald-900">Nästa åtgärd</span>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-emerald-900">
+                          Nästa åtgärd
+                        </span>
                         {dashboardActions[0] && (
-                          <span className="text-[11px] font-black uppercase tracking-wide text-emerald-100">{dashboardActions[0].badge}</span>
+                          <span className="text-[11px] font-black uppercase tracking-wide text-emerald-100">
+                            {dashboardActions[0].badge}
+                          </span>
                         )}
                       </div>
                       <div className="mt-2 sm:flex sm:items-baseline sm:gap-3">
                         <h2 className="text-lg font-black sm:text-xl">
-                          {dashboardActions[0]?.title ?? "Lägg till dina första tjänster"}
+                          {dashboardActions[0]?.title ??
+                            "Lägg till dina första tjänster"}
                         </h2>
                         <p className="mt-1 line-clamp-1 text-sm font-medium text-emerald-50 sm:mt-0">
-                          {dashboardActions[0]?.subtitle ?? "Börja med streaming, mobil och ett medlemskap för en bättre analys."}
+                          {dashboardActions[0]?.subtitle ??
+                            "Börja med streaming, mobil och ett medlemskap för en bättre analys."}
                         </p>
                       </div>
                     </div>
-                    <a href="#services-section" className="inline-flex shrink-0 justify-center rounded-xl bg-white px-4 py-2 text-sm font-black text-emerald-900 hover:bg-emerald-50">
+                    <a
+                      href="#services-section"
+                      className="inline-flex shrink-0 justify-center rounded-xl bg-white px-4 py-2 text-sm font-black text-emerald-900 hover:bg-emerald-50"
+                    >
                       Öppna tjänster →
                     </a>
                   </div>
@@ -2102,7 +2181,8 @@ export default function Home() {
                       className="mt-3 flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left text-sm font-black text-emerald-50 transition hover:bg-white/10 hover:text-white"
                     >
                       <span>
-                        Visa {savingsOpportunities.length} besparingsmöjlighet{savingsOpportunities.length === 1 ? "" : "er"}
+                        Visa {savingsOpportunities.length} besparingsmöjlighet
+                        {savingsOpportunities.length === 1 ? "" : "er"}
                         {additionalPlanSavings > 0
                           ? ` · ytterligare cirka ${formatCurrency(additionalPlanSavings)}/mån i planbyten`
                           : ""}
@@ -2117,24 +2197,40 @@ export default function Home() {
                 <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
                   <div>
                     <p className="text-sm font-bold text-slate-500">
-                      {thingsToCheck === 0 ? "Status just nu" : "Behöver din uppmärksamhet"}
+                      {thingsToCheck === 0
+                        ? "Status just nu"
+                        : "Behöver din uppmärksamhet"}
                     </p>
-                    <p className={`mt-1 font-black ${thingsToCheck === 0 ? "text-base text-emerald-700" : "text-2xl text-amber-700"}`}>
-                      {thingsToCheck === 0 ? "Inget behöver ses över" : thingsToCheck}
+                    <p
+                      className={`mt-1 font-black ${thingsToCheck === 0 ? "text-base text-emerald-700" : "text-2xl text-amber-700"}`}
+                    >
+                      {thingsToCheck === 0
+                        ? "Inget behöver ses över"
+                        : thingsToCheck}
                     </p>
                   </div>
-                  <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${thingsToCheck === 0 ? "bg-emerald-100" : "bg-amber-100"}`}>
+                  <span
+                    className={`flex h-10 w-10 items-center justify-center rounded-2xl ${thingsToCheck === 0 ? "bg-emerald-100" : "bg-amber-100"}`}
+                  >
                     {thingsToCheck === 0 ? "🎉" : "⚠️"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
                   <div>
-                    <p className="text-sm font-bold text-slate-500">Tjänster analyserade</p>
-                    <p className={`mt-1 font-black text-emerald-700 ${subscriptions.length === 0 ? "text-base" : "text-2xl"}`}>
-                      {subscriptions.length === 0 ? "Ingen analys ännu" : `${subscriptions.length} tjänster`}
+                    <p className="text-sm font-bold text-slate-500">
+                      Tjänster analyserade
+                    </p>
+                    <p
+                      className={`mt-1 font-black text-emerald-700 ${subscriptions.length === 0 ? "text-base" : "text-2xl"}`}
+                    >
+                      {subscriptions.length === 0
+                        ? "Ingen analys ännu"
+                        : `${subscriptions.length} tjänster`}
                     </p>
                   </div>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100">✓</span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100">
+                    ✓
+                  </span>
                 </div>
               </div>
             </div>
@@ -2148,7 +2244,12 @@ export default function Home() {
         </header>
 
         <div className="mb-6 flex flex-wrap gap-3 md:hidden">
-          <button onClick={() => setShowSettings(true)} className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm">⚙️ Inställningar</button>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 shadow-sm"
+          >
+            ⚙️ Inställningar
+          </button>
           <StorageStatusBadge status={storageStatus} />
         </div>
 
@@ -2269,7 +2370,12 @@ export default function Home() {
                       selectedPlan={plan}
                       onPlanChange={setPlan}
                       onUseCategory={() =>
-                        setCategory(getBenefitlyCategory(recognizedService.category, recognizedService.displayName))
+                        setCategory(
+                          getBenefitlyCategory(
+                            recognizedService.category,
+                            recognizedService.displayName,
+                          ),
+                        )
                       }
                       onUseBillingPeriod={() =>
                         setBillingPeriod(
@@ -2285,7 +2391,9 @@ export default function Home() {
                 <FormField label="Kategori">
                   <select
                     value={category}
-                    onChange={(event) => setCategory(event.target.value as BenefitlyCategory)}
+                    onChange={(event) =>
+                      setCategory(event.target.value as BenefitlyCategory)
+                    }
                     className={inputClassName}
                   >
                     {categoryOptions.map((categoryName) => (
@@ -2399,7 +2507,9 @@ export default function Home() {
           additionalPlanSavings={additionalPlanSavings}
           onClose={() => setShowSavingsSheet(false)}
           onOpenAnalysis={(subscriptionId) => {
-            const subscription = subscriptions.find((item) => item.id === subscriptionId);
+            const subscription = subscriptions.find(
+              (item) => item.id === subscriptionId,
+            );
             if (subscription) {
               setAnalysisSubscription(subscription);
               setShowSavingsSheet(false);
@@ -2750,7 +2860,7 @@ function isLikelyFreeMembership(subscription: Subscription) {
 
   return (
     getBenefitlyCategory(subscription.category, subscription.name) ===
-      "Shopping och medlemskap"
+    "Shopping och medlemskap"
   );
 }
 
@@ -3088,7 +3198,11 @@ function getCheckItems(
         reasons.push("Används ibland och kostar en del");
       }
 
-      if (getBenefitlyCategory(subscription.category, subscription.name) === "Kommunikation" && monthlyPrice >= 250) {
+      if (
+        getBenefitlyCategory(subscription.category, subscription.name) ===
+          "Kommunikation" &&
+        monthlyPrice >= 250
+      ) {
         reasons.push("Mobilkostnaden kan vara värd att jämföra");
       }
 
@@ -3451,7 +3565,10 @@ function getRecommendedAction(subscription: Subscription) {
     return "Kontrollera vilka Prime-förmåner du använder utöver video, till exempel leverans och andra medlemsförmåner.";
   }
 
-  if (hasName(subscription, ["netflix"]) && getPlanText(subscription.plan).includes("premium")) {
+  if (
+    hasName(subscription, ["netflix"]) &&
+    getPlanText(subscription.plan).includes("premium")
+  ) {
     return "Jämför Premium med Standard och kontrollera om du behöver 4K och flera samtidiga strömmar.";
   }
 
@@ -3928,7 +4045,6 @@ function getBenefitsByCategory(category: string) {
   ];
 }
 
-
 function getEstimatedPlanMonthlyPrice(
   subscription: Subscription,
   planReference: PlanReference,
@@ -3961,11 +4077,11 @@ function getEstimatedPlanMonthlyPrice(
   return null;
 }
 
-function getSavingsOpportunities(
+function getBenefitlyRecommendations(
   subscriptions: Subscription[],
   overlapInsights: Insight[],
-): SavingsOpportunity[] {
-  const opportunities: SavingsOpportunity[] = [];
+): BenefitlyRecommendation[] {
+  const recommendations: BenefitlyRecommendation[] = [];
 
   const directCandidates = subscriptions
     .filter(
@@ -3987,15 +4103,31 @@ function getSavingsOpportunities(
     const secondaryPlanText = cheaperPlan
       ? ` Om du vill behålla tjänsten kan ${cheaperPlan.planName} vara ett billigare alternativ.`
       : "";
+    const monthlySaving = Math.round(getMonthlyPrice(subscription));
 
-    opportunities.push({
-      id: `direct-${subscription.id}`,
-      kind: "direct",
+    recommendations.push({
+      id: `cancel-or-pause-${subscription.id}`,
+      kind: "cancel_or_pause",
+      confidence: "likely",
+      priority: 90 + Math.min(monthlySaving, 500) / 100,
+      subscriptionId: subscription.id,
       title: subscription.name,
       description: `Du använder tjänsten sällan. Kontrollera först om du verkligen behöver den. Om du pausar eller säger upp den kan hela kostnaden försvinna.${secondaryPlanText}`,
-      monthlyAmount: Math.round(getMonthlyPrice(subscription)),
-      yearlyAmount: Math.round(getYearlyPrice(subscription)),
+      reason: `${subscription.name} används sällan och kostar ${formatCurrency(monthlySaving)}/mån.`,
+      monthlySaving,
+      yearlySaving: Math.round(getYearlyPrice(subscription)),
+      questions: [
+        "Använder någon annan i hushållet tjänsten?",
+        "Finns innehåll eller förmåner du vill behålla?",
+        ...(cheaperPlan
+          ? [
+              `Skulle ${cheaperPlan.planName} täcka behovet om du vill behålla tjänsten?`,
+            ]
+          : []),
+      ],
+      includeInConfirmedSavings: false,
       status: "Kan pausas eller sägas upp",
+      targetPlan: cheaperPlan?.planName,
     });
   });
 
@@ -4019,37 +4151,151 @@ function getSavingsOpportunities(
       cheaperPlan,
     );
     const currentMonthlyPrice = getMonthlyPrice(subscription);
-    const monthlyAmount = estimatedCheaperPrice
+    const monthlySaving = estimatedCheaperPrice
       ? Math.max(0, Math.round(currentMonthlyPrice - estimatedCheaperPrice))
       : undefined;
 
-    if (monthlyAmount !== undefined && monthlyAmount <= 0) {
+    if (monthlySaving !== undefined && monthlySaving <= 0) {
       return;
     }
 
-    opportunities.push({
-      id: `plan-${subscription.id}`,
-      kind: "plan",
+    recommendations.push({
+      id: `plan-change-${subscription.id}`,
+      kind: "plan_change",
+      confidence: "needs_confirmation",
+      priority: 70 + Math.min(monthlySaving ?? 0, 300) / 100,
+      subscriptionId: subscription.id,
       title: `${subscription.name}: ${subscription.plan} → ${cheaperPlan.planName}`,
-      description: `En billigare plan kan räcka, men kontrollera först vilka funktioner du behöver. Prisuppskattningen är ungefärlig och ska alltid verifieras hos leverantören.`,
-      monthlyAmount,
-      yearlyAmount:
-        monthlyAmount !== undefined ? monthlyAmount * 12 : undefined,
+      description:
+        "En billigare plan kan räcka, men kontrollera först vilka funktioner du behöver. Prisuppskattningen är ungefärlig och ska alltid verifieras hos leverantören.",
+      reason: `${subscription.name} används ${subscription.usage.toLowerCase()} och har en dyrare plan än ${cheaperPlan.planName}.`,
+      monthlySaving,
+      yearlySaving:
+        monthlySaving !== undefined ? monthlySaving * 12 : undefined,
+      questions: [
+        "Vilka funktioner i din nuvarande plan använder du?",
+        "Behöver du högsta bildkvalitet, fler användare eller extra lagring?",
+        `Täcker ${cheaperPlan.planName} ditt behov?`,
+      ],
+      includeInConfirmedSavings: false,
       status: "Behöver bekräftas",
+      targetPlan: cheaperPlan.planName,
+    });
+  });
+
+  subscriptions.forEach((subscription) => {
+    const priceSanity = getPriceSanity(subscription);
+
+    if (!priceSanity) {
+      return;
+    }
+
+    recommendations.push({
+      id: `price-check-${subscription.id}`,
+      kind: "price_check",
+      confidence: "needs_confirmation",
+      priority: priceSanity.level === "extreme" ? 100 : 80,
+      subscriptionId: subscription.id,
+      title: `Kontrollera priset på ${subscription.name}`,
+      description:
+        getPlanPriceWarningMessage(subscription) ??
+        `Priset verkar ${priceSanity.level === "low" ? "ovanligt lågt" : "ovanligt högt"}. Kontrollera belopp, betalperiod och vald plan.`,
+      reason: `Priset avviker från Benefitlys rimlighetskontroll för ${priceSanity.categoryLabel}.`,
+      questions: [
+        "Är priset angivet per månad eller per år?",
+        "Är det kampanjpris, delad kostnad eller arbetsgivarförmån?",
+        "Har du valt rätt plan?",
+      ],
+      includeInConfirmedSavings: false,
+      status: "Pris behöver kontrolleras",
+    });
+  });
+
+  subscriptions.forEach((subscription) => {
+    if (
+      !hasName(subscription, [
+        "bankkort",
+        "kreditkort",
+        "försäkring",
+        "amazon prime",
+        "prime video",
+      ])
+    ) {
+      return;
+    }
+
+    recommendations.push({
+      id: `benefit-check-${subscription.id}`,
+      kind: "benefit_check",
+      confidence: "needs_confirmation",
+      priority: 45,
+      subscriptionId: subscription.id,
+      title: `Kontrollera förmånerna i ${subscription.name}`,
+      description:
+        "Tjänsten kan innehålla rabatter, skydd eller andra förmåner som påverkar dess verkliga värde.",
+      reason:
+        "Benefitly känner igen en tjänst där oanvända förmåner eller överlapp ofta förekommer.",
+      questions: [
+        "Vilka förmåner har du aktiverat?",
+        "Vilka förmåner använder du faktiskt?",
+        "Finns samma skydd eller rabatt redan någon annanstans?",
+      ],
+      includeInConfirmedSavings: false,
+      status: "Förmåner behöver kontrolleras",
     });
   });
 
   overlapInsights.forEach((insight, index) => {
-    opportunities.push({
+    recommendations.push({
       id: `overlap-${index}`,
       kind: "overlap",
+      confidence: "needs_confirmation",
+      priority: 60,
       title: insight.title,
       description: insight.text,
+      reason: "Flera tjänster verkar täcka liknande behov eller funktioner.",
+      questions: [
+        "Vilken av tjänsterna använder du mest?",
+        "Vilken tjänst har funktioner du inte kan vara utan?",
+        "Kan någon tjänst pausas utan att behovet försvinner?",
+      ],
+      includeInConfirmedSavings: false,
       status: "Jämför innan du ändrar",
     });
   });
 
-  return opportunities;
+  return recommendations.sort((a, b) => b.priority - a.priority);
+}
+
+function getSavingsOpportunities(
+  subscriptions: Subscription[],
+  overlapInsights: Insight[],
+): SavingsOpportunity[] {
+  return getBenefitlyRecommendations(subscriptions, overlapInsights)
+    .filter((recommendation) =>
+      ["cancel_or_pause", "plan_change", "overlap"].includes(
+        recommendation.kind,
+      ),
+    )
+    .map((recommendation) => ({
+      id:
+        recommendation.kind === "cancel_or_pause"
+          ? `direct-${recommendation.subscriptionId}`
+          : recommendation.kind === "plan_change"
+            ? `plan-${recommendation.subscriptionId}`
+            : recommendation.id,
+      kind:
+        recommendation.kind === "cancel_or_pause"
+          ? "direct"
+          : recommendation.kind === "plan_change"
+            ? "plan"
+            : "overlap",
+      title: recommendation.title,
+      description: recommendation.description,
+      monthlyAmount: recommendation.monthlySaving,
+      yearlyAmount: recommendation.yearlySaving,
+      status: recommendation.status,
+    }));
 }
 
 type DashboardAction = {
@@ -4098,7 +4344,8 @@ function getDashboardActions(
     actions.push({
       id: `plan-${planCandidate.id}`,
       title: `${planCandidate.name} ${planCandidate.plan ?? ""}`.trim(),
-      subtitle: "Det finns billigare prisnivåer. Jämför innehållet innan du byter.",
+      subtitle:
+        "Det finns billigare prisnivåer. Jämför innehållet innan du byter.",
       badge: "Jämför planer",
       tone: "amber",
     });
@@ -4120,7 +4367,8 @@ function getDashboardActions(
     actions.push({
       id: "start",
       title: "Lägg till dina första tjänster",
-      subtitle: "Börja med streaming, mobil och ett medlemskap för en bättre analys.",
+      subtitle:
+        "Börja med streaming, mobil och ett medlemskap för en bättre analys.",
       badge: "Kom igång",
       tone: "green",
     });
@@ -4145,12 +4393,18 @@ function SmartSummaryCard({
   return (
     <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center gap-3">
-        <span className={`flex h-10 w-10 items-center justify-center rounded-2xl ${tone === "green" ? "bg-emerald-100" : "bg-amber-100"}`}>
+        <span
+          className={`flex h-10 w-10 items-center justify-center rounded-2xl ${tone === "green" ? "bg-emerald-100" : "bg-amber-100"}`}
+        >
           {icon}
         </span>
         <p className="text-sm font-bold text-slate-600">{label}</p>
       </div>
-      <p className={`mt-4 text-3xl font-black ${tone === "green" ? "text-emerald-800" : "text-amber-700"}`}>{value}</p>
+      <p
+        className={`mt-4 text-3xl font-black ${tone === "green" ? "text-emerald-800" : "text-amber-700"}`}
+      >
+        {value}
+      </p>
       <p className="mt-1 text-sm font-semibold text-slate-500">{detail}</p>
     </div>
   );
@@ -4166,20 +4420,39 @@ function PriorityActionsSection({ actions }: { actions: DashboardAction[] }) {
       <div className="flex items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black">Fler saker att kontrollera</h2>
-          <p className="mt-1 text-sm font-medium text-slate-500">Bara det som fortfarande är relevant.</p>
+          <p className="mt-1 text-sm font-medium text-slate-500">
+            Bara det som fortfarande är relevant.
+          </p>
         </div>
-        <a href="#services-section" className="text-sm font-black text-emerald-800">Visa alla →</a>
+        <a
+          href="#services-section"
+          className="text-sm font-black text-emerald-800"
+        >
+          Visa alla →
+        </a>
       </div>
 
       <div className="mt-4 divide-y divide-slate-100">
         {actions.map((action) => (
-          <a key={action.id} href="#services-section" className="flex items-center gap-4 py-4 first:pt-0 last:pb-0">
-            <span className={`h-3 w-3 shrink-0 rounded-full ${action.tone === "red" ? "bg-red-500" : action.tone === "amber" ? "bg-amber-500" : "bg-emerald-500"}`} />
+          <a
+            key={action.id}
+            href="#services-section"
+            className="flex items-center gap-4 py-4 first:pt-0 last:pb-0"
+          >
+            <span
+              className={`h-3 w-3 shrink-0 rounded-full ${action.tone === "red" ? "bg-red-500" : action.tone === "amber" ? "bg-amber-500" : "bg-emerald-500"}`}
+            />
             <div className="min-w-0 flex-1">
-              <p className="truncate font-black text-slate-950">{action.title}</p>
-              <p className="mt-1 line-clamp-1 text-sm font-medium text-slate-500">{action.subtitle}</p>
+              <p className="truncate font-black text-slate-950">
+                {action.title}
+              </p>
+              <p className="mt-1 line-clamp-1 text-sm font-medium text-slate-500">
+                {action.subtitle}
+              </p>
             </div>
-            <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">{action.badge}</span>
+            <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
+              {action.badge}
+            </span>
             <span className="text-slate-400">›</span>
           </a>
         ))}
@@ -4188,17 +4461,29 @@ function PriorityActionsSection({ actions }: { actions: DashboardAction[] }) {
   );
 }
 
-function BenefitlyScorePanel({ score, subscriptions, checkItems }: { score: number; subscriptions: Subscription[]; checkItems: CheckItem[] }) {
+function BenefitlyScorePanel({
+  score,
+  subscriptions,
+  checkItems,
+}: {
+  score: number;
+  subscriptions: Subscription[];
+  checkItems: CheckItem[];
+}) {
   const planMissing = subscriptions.filter((item) => !item.plan?.trim()).length;
   const nextSteps: string[] = [];
   const hasServices = subscriptions.length > 0;
 
   if (planMissing > 0) {
-    nextSteps.push(`Lägg till plan på ${planMissing} tjänst${planMissing === 1 ? "" : "er"}`);
+    nextSteps.push(
+      `Lägg till plan på ${planMissing} tjänst${planMissing === 1 ? "" : "er"}`,
+    );
   }
 
   if (checkItems.length > 0) {
-    nextSteps.push(`Kontrollera ${checkItems.length} prioriterad${checkItems.length === 1 ? " sak" : "e saker"}`);
+    nextSteps.push(
+      `Kontrollera ${checkItems.length} prioriterad${checkItems.length === 1 ? " sak" : "e saker"}`,
+    );
   }
 
   return (
@@ -4217,32 +4502,48 @@ function BenefitlyScorePanel({ score, subscriptions, checkItems }: { score: numb
 
       {hasServices ? (
         <>
-          <div className="mx-auto mt-5 flex h-32 w-32 items-center justify-center rounded-full bg-[conic-gradient(#059669_var(--score),#d1fae5_0)] p-2.5" style={{ "--score": `${score}%` } as React.CSSProperties}>
+          <div
+            className="mx-auto mt-5 flex h-32 w-32 items-center justify-center rounded-full bg-[conic-gradient(#059669_var(--score),#d1fae5_0)] p-2.5"
+            style={{ "--score": `${score}%` } as React.CSSProperties}
+          >
             <div className="flex h-full w-full flex-col items-center justify-center rounded-full bg-white">
               <p className="text-4xl font-black text-emerald-800">{score}</p>
               <p className="text-xs font-bold text-slate-500">av 100</p>
             </div>
           </div>
 
-          <p className="mt-4 text-center text-sm font-black leading-relaxed text-slate-900">{getBenefitlyScoreText(score)}</p>
+          <p className="mt-4 text-center text-sm font-black leading-relaxed text-slate-900">
+            {getBenefitlyScoreText(score)}
+          </p>
 
           {nextSteps.length > 0 ? (
             <div className="mt-4 rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs font-black uppercase tracking-wide text-slate-500">Nästa nivå</p>
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                Nästa nivå
+              </p>
               <ul className="mt-3 space-y-2 text-sm font-semibold text-slate-700">
-                {nextSteps.map((step) => <li key={step}>○ {step}</li>)}
+                {nextSteps.map((step) => (
+                  <li key={step}>○ {step}</li>
+                ))}
               </ul>
             </div>
           ) : (
-            <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800">✓ All grunddata ser komplett ut.</div>
+            <div className="mt-4 rounded-2xl bg-emerald-50 p-4 text-sm font-bold text-emerald-800">
+              ✓ All grunddata ser komplett ut.
+            </div>
           )}
         </>
       ) : (
         <div className="mt-5 rounded-3xl bg-emerald-50 p-4 text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-[7px] border-emerald-100 bg-white text-2xl">🔎</div>
-          <p className="mt-3 text-base font-black text-emerald-950">Lägg till minst 3 tjänster</p>
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border-[7px] border-emerald-100 bg-white text-2xl">
+            🔎
+          </div>
+          <p className="mt-3 text-base font-black text-emerald-950">
+            Lägg till minst 3 tjänster
+          </p>
           <p className="mt-1 text-sm font-semibold leading-relaxed text-emerald-900">
-            Då kan Benefitly räkna ut din första score och visa hur bra kontroll du har.
+            Då kan Benefitly räkna ut din första score och visa hur bra kontroll
+            du har.
           </p>
         </div>
       )}
@@ -4250,7 +4551,13 @@ function BenefitlyScorePanel({ score, subscriptions, checkItems }: { score: numb
   );
 }
 
-function BenefitlyInbox({ subscriptions, overlapInsights }: { subscriptions: Subscription[]; overlapInsights: Insight[] }) {
+function BenefitlyInbox({
+  subscriptions,
+  overlapInsights,
+}: {
+  subscriptions: Subscription[];
+  overlapInsights: Insight[];
+}) {
   const messages = getDashboardActions(subscriptions, overlapInsights).slice(1);
   const onboardingMessages: DashboardAction[] = [
     {
@@ -4275,18 +4582,26 @@ function BenefitlyInbox({ subscriptions, overlapInsights }: { subscriptions: Sub
       tone: "green",
     },
   ];
-  const assistantMessages = subscriptions.length === 0 ? onboardingMessages : messages;
+  const assistantMessages =
+    subscriptions.length === 0 ? onboardingMessages : messages;
 
   if (subscriptions.length > 0 && assistantMessages.length === 0) {
     return null;
   }
 
   return (
-    <section id="assistant" className="mt-8 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm">
+    <section
+      id="assistant"
+      className="mt-8 rounded-3xl border border-emerald-200 bg-emerald-50/60 p-4 shadow-sm"
+    >
       <div>
-        <p className="text-sm font-black text-emerald-800">Benefitly-assistenten</p>
+        <p className="text-sm font-black text-emerald-800">
+          Benefitly-assistenten
+        </p>
         <h2 className="mt-1 text-xl font-black">
-          {subscriptions.length === 0 ? "Så kommer du igång" : "Det här har jag hittat åt dig"}
+          {subscriptions.length === 0
+            ? "Så kommer du igång"
+            : "Det här har jag hittat åt dig"}
         </h2>
         <p className="mt-1 text-sm font-medium text-slate-600">
           {subscriptions.length === 0
@@ -4296,13 +4611,25 @@ function BenefitlyInbox({ subscriptions, overlapInsights }: { subscriptions: Sub
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-3">
         {assistantMessages.map((message) => (
-          <a key={message.id} href="#services-section" className="rounded-2xl border border-white bg-white p-3 shadow-sm transition hover:-translate-y-0.5">
+          <a
+            key={message.id}
+            href="#services-section"
+            className="rounded-2xl border border-white bg-white p-3 shadow-sm transition hover:-translate-y-0.5"
+          >
             <div className="flex items-start gap-3">
-              <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${message.tone === "red" ? "bg-red-500" : message.tone === "amber" ? "bg-amber-500" : "bg-emerald-500"}`} />
+              <span
+                className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${message.tone === "red" ? "bg-red-500" : message.tone === "amber" ? "bg-amber-500" : "bg-emerald-500"}`}
+              />
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-black text-slate-950">{message.title}</p>
-                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-500">{message.subtitle}</p>
-                <p className="mt-2 text-[11px] font-black uppercase tracking-wide text-emerald-700">{message.badge}</p>
+                <p className="text-sm font-black text-slate-950">
+                  {message.title}
+                </p>
+                <p className="mt-1 text-xs font-semibold leading-relaxed text-slate-500">
+                  {message.subtitle}
+                </p>
+                <p className="mt-2 text-[11px] font-black uppercase tracking-wide text-emerald-700">
+                  {message.badge}
+                </p>
               </div>
               <span className="text-slate-400">›</span>
             </div>
@@ -4328,46 +4655,268 @@ function CompactSubscriptionRow({
   onShowAnalysis: (subscription: Subscription) => void;
   onCompare: (subscription: Subscription) => void;
 }) {
-  const [showMore, setShowMore] = useState(false);
+  const [openPanel, setOpenPanel] = useState<"benefits" | "more" | null>(null);
+  const [showMobileActions, setShowMobileActions] = useState(false);
   const icon = getServiceIcon(subscription);
   const score = getBenefitlyScore(subscription);
   const scoreMeta = getBenefitlyScoreMeta(score);
   const action = getRecommendedAction(subscription);
   const rawPriceSanity = getRawPriceSanity(subscription);
 
+  function togglePanel(panel: "benefits" | "more") {
+    setOpenPanel((currentPanel) => (currentPanel === panel ? null : panel));
+  }
+
+  const quickActionClassName =
+    "group/action relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white/95 text-slate-500 shadow-[0_2px_8px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 hover:shadow-[0_8px_20px_rgba(5,150,105,0.14)] focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-2";
+
+  const tooltipClassName =
+    "pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white opacity-0 shadow-lg transition-all duration-150 after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-[4px] after:border-transparent after:border-t-slate-950 group-hover/action:translate-y-0 group-hover/action:opacity-100 group-focus/action:translate-y-0 group-focus/action:opacity-100";
+
   return (
-    <div className="border-b border-slate-200 last:border-b-0">
-      <div className="grid items-center gap-4 px-5 py-4 lg:grid-cols-[minmax(0,1.4fr)_120px_105px_minmax(180px,1fr)_auto]">
+    <div className="group relative border-b border-slate-200 transition-all duration-300 last:border-b-0 hover:z-10 hover:bg-gradient-to-r hover:from-white hover:via-emerald-50/35 hover:to-white hover:shadow-[0_14px_34px_rgba(15,23,42,0.10)] focus-within:z-10 focus-within:bg-emerald-50/35 focus-within:shadow-[0_14px_34px_rgba(15,23,42,0.10)]">
+      <div className="grid items-center gap-4 px-5 py-4 transition-all duration-300 ease-out group-hover:-translate-y-0.5 group-focus-within:-translate-y-0.5 lg:grid-cols-[minmax(0,1.4fr)_120px_105px_minmax(180px,1fr)_auto] lg:pr-7">
         <div className="flex min-w-0 items-center gap-3">
-          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black ${icon.className}`}>{icon.label}</div>
+          <div
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-sm font-black ${icon.className}`}
+          >
+            {icon.label}
+          </div>
           <div className="min-w-0">
-            <p className="truncate font-black text-slate-950">{subscription.name}</p>
-            <p className="truncate text-xs font-semibold text-slate-500">{getBenefitlyCategory(subscription.category, subscription.name)}{subscription.plan ? ` · ${subscription.plan}` : ""}</p>
-            <p className="mt-1 text-xs font-bold text-slate-600">Används {subscription.usage.toLowerCase()}</p>
+            <p className="truncate font-black text-slate-950">
+              {subscription.name}
+            </p>
+            <p className="truncate text-xs font-semibold text-slate-500">
+              {getBenefitlyCategory(subscription.category, subscription.name)}
+              {subscription.plan ? ` · ${subscription.plan}` : ""}
+            </p>
+            <p className="mt-1 text-xs font-bold text-slate-600">
+              Används {subscription.usage.toLowerCase()}
+            </p>
           </div>
         </div>
 
-        <div className="font-black text-slate-950">{formatCurrency(getMonthlyPrice(subscription))}/mån</div>
+        <div className="font-black text-slate-950">
+          {formatCurrency(getMonthlyPrice(subscription))}/mån
+        </div>
 
-        <div className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 ${scoreMeta.className}`}>
+        <div
+          className={`inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 ${scoreMeta.className}`}
+        >
           <span className="font-black">{score}</span>
           <span className="text-[11px] font-black">{scoreMeta.label}</span>
         </div>
 
-        <p className={`line-clamp-2 text-sm font-bold ${score >= 85 ? "text-emerald-800" : score >= 65 ? "text-amber-800" : "text-red-700"}`}>{action}</p>
+        <p
+          className={`line-clamp-2 text-sm font-bold ${score >= 85 ? "text-emerald-800" : score >= 65 ? "text-amber-800" : "text-red-700"}`}
+        >
+          {action}
+        </p>
 
-        <div className="flex flex-wrap justify-end gap-2">
-          <button type="button" onClick={() => onShowAnalysis(subscription)} className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50">Se analys</button>
-          <button type="button" onClick={() => onCompare(subscription)} className="rounded-xl bg-emerald-700 px-3 py-2 text-xs font-black text-white hover:bg-emerald-800">Jämför</button>
-          <button type="button" onClick={() => setShowMore(!showMore)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-black text-slate-500 hover:bg-slate-50">•••</button>
+        <div className="flex items-center justify-end lg:pr-2">
+          <div className="hidden origin-right items-center gap-2.5 translate-x-5 scale-[0.96] opacity-0 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:scale-100 group-focus-within:opacity-100 lg:flex">
+            <button
+              type="button"
+              onClick={() => onShowAnalysis(subscription)}
+              className={quickActionClassName}
+              aria-label={`Visa analys för ${subscription.name}`}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M4 19V9" />
+                <path d="M10 19V5" />
+                <path d="M16 19v-7" />
+                <path d="M22 19H2" />
+              </svg>
+              <span className={tooltipClassName}>Analys</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onCompare(subscription)}
+              className={quickActionClassName}
+              aria-label={`Jämför ${subscription.name}`}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M7 7h10" />
+                <path d="m14 4 3 3-3 3" />
+                <path d="M17 17H7" />
+                <path d="m10 14-3 3 3 3" />
+              </svg>
+              <span className={tooltipClassName}>Jämför</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => togglePanel("benefits")}
+              className={`${quickActionClassName} h-10 w-10 border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-emerald-100 text-emerald-700 shadow-[0_4px_14px_rgba(5,150,105,0.12)] hover:scale-105 hover:border-emerald-300 hover:from-emerald-100 hover:to-emerald-200 hover:text-emerald-900 ${openPanel === "benefits" ? "border-emerald-400 from-emerald-100 to-emerald-200 text-emerald-900 ring-2 ring-emerald-100" : ""}`}
+              aria-label={`Visa förmåner för ${subscription.name}`}
+              aria-expanded={openPanel === "benefits"}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <rect x="3" y="8" width="18" height="13" rx="2" />
+                <path d="M12 8v13" />
+                <path d="M3 12h18" />
+                <path d="M12 8H8.5A2.5 2.5 0 1 1 11 5.5L12 8Z" />
+                <path d="M12 8h3.5A2.5 2.5 0 1 0 13 5.5L12 8Z" />
+              </svg>
+              <span className={tooltipClassName}>Förmåner</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => togglePanel("more")}
+              className={`${quickActionClassName} ${openPanel === "more" ? "border-slate-400 bg-slate-100" : ""}`}
+              aria-label={`Fler val för ${subscription.name}`}
+              aria-expanded={openPanel === "more"}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                className="h-4 w-4"
+                fill="currentColor"
+              >
+                <circle cx="5" cy="12" r="1.6" />
+                <circle cx="12" cy="12" r="1.6" />
+                <circle cx="19" cy="12" r="1.6" />
+              </svg>
+              <span className={tooltipClassName}>Mer</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowMobileActions((isOpen) => !isOpen)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-black text-slate-700 shadow-sm lg:hidden"
+            aria-expanded={showMobileActions}
+          >
+            {showMobileActions ? "Stäng" : "Åtgärder"}
+          </button>
         </div>
       </div>
 
-      {showMore && (
+      {showMobileActions && (
+        <div className="grid grid-cols-4 gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3 lg:hidden">
+          <button
+            type="button"
+            onClick={() => onShowAnalysis(subscription)}
+            className="rounded-xl bg-white px-2 py-3 text-center text-xs font-black shadow-sm"
+          >
+            <span className="block text-lg">📊</span>
+            <span className="mt-1 block">Analys</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onCompare(subscription)}
+            className="rounded-xl bg-white px-2 py-3 text-center text-xs font-black shadow-sm"
+          >
+            <span className="block text-lg">⚖️</span>
+            <span className="mt-1 block">Jämför</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => togglePanel("benefits")}
+            className="rounded-xl bg-white px-2 py-3 text-center text-xs font-black shadow-sm"
+          >
+            <span className="block text-lg">🎁</span>
+            <span className="mt-1 block">Förmåner</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => togglePanel("more")}
+            className="rounded-xl bg-white px-2 py-3 text-center text-xs font-black shadow-sm"
+          >
+            <span className="block text-lg">•••</span>
+            <span className="mt-1 block">Mer</span>
+          </button>
+        </div>
+      )}
+
+      {openPanel === "benefits" && (
+        <div className="border-t border-emerald-100 bg-emerald-50/70 px-5 py-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
+                Förmåner och innehåll
+              </p>
+              <h3 className="mt-1 font-black text-emerald-950">
+                Det här känner Benefitly till just nu
+              </h3>
+              <p className="mt-1 text-sm font-medium text-emerald-900">
+                Senare kan samma yta även visa aktiva rabatter, oanvända
+                förmåner och frågor som behövs för ett säkrare råd.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setOpenPanel(null)}
+              className="self-start rounded-full bg-white px-3 py-1 text-xs font-black text-emerald-800 shadow-sm"
+            >
+              Stäng
+            </button>
+          </div>
+
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {subscription.benefits.slice(0, 6).map((benefit) => (
+              <div
+                key={benefit}
+                className="rounded-2xl border border-emerald-100 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+              >
+                ✓ {benefit}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {openPanel === "more" && (
         <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 bg-slate-50 px-5 py-3">
-          {rawPriceSanity && !subscription.priceConfirmed && <button onClick={() => onConfirmPrice(subscription.id)} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold">Priset är korrekt</button>}
-          <button onClick={() => onEdit(subscription)} className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold">Redigera</button>
-          <button onClick={() => onDelete(subscription.id)} className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700">Ta bort</button>
+          {rawPriceSanity && !subscription.priceConfirmed && (
+            <button
+              onClick={() => onConfirmPrice(subscription.id)}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold"
+            >
+              Priset är korrekt
+            </button>
+          )}
+          <button
+            onClick={() => onEdit(subscription)}
+            className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold"
+          >
+            Redigera
+          </button>
+          <button
+            onClick={() => onDelete(subscription.id)}
+            className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-bold text-red-700"
+          >
+            Ta bort
+          </button>
         </div>
       )}
     </div>
@@ -4409,7 +4958,11 @@ function SavingsOpportunitiesSheet({
     return null;
   }
 
-  function OpportunityCard({ opportunity }: { opportunity: SavingsOpportunity }) {
+  function OpportunityCard({
+    opportunity,
+  }: {
+    opportunity: SavingsOpportunity;
+  }) {
     const subscriptionId = getSubscriptionId(opportunity);
     const tone =
       opportunity.kind === "direct"
@@ -4438,8 +4991,7 @@ function SavingsOpportunitiesSheet({
               </p>
               <p className="text-xs font-bold text-slate-500">
                 {formatCurrency(
-                  opportunity.yearlyAmount ??
-                    opportunity.monthlyAmount * 12,
+                  opportunity.yearlyAmount ?? opportunity.monthlyAmount * 12,
                 )}{" "}
                 per år
               </p>
@@ -4486,7 +5038,8 @@ function SavingsOpportunitiesSheet({
               Möjliga besparingar
             </h2>
             <p className="mt-2 max-w-2xl text-sm font-medium text-slate-600">
-              Benefitly skiljer på kostnader som kan tas bort och planbyten som först behöver bekräftas. Beloppen är vägledning, inte löften.
+              Benefitly skiljer på kostnader som kan tas bort och planbyten som
+              först behöver bekräftas. Beloppen är vägledning, inte löften.
             </p>
           </div>
           <button
@@ -4528,20 +5081,30 @@ function SavingsOpportunitiesSheet({
         {opportunities.length === 0 ? (
           <div className="mt-5 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
             <p className="text-3xl">🎉</p>
-            <h3 className="mt-3 text-xl font-black">Inga tydliga besparingar hittade ännu</h3>
+            <h3 className="mt-3 text-xl font-black">
+              Inga tydliga besparingar hittade ännu
+            </h3>
             <p className="mx-auto mt-2 max-w-xl text-sm font-medium text-slate-600">
-              Lägg till fler tjänster, plannivåer och användning så får Benefitly bättre underlag.
+              Lägg till fler tjänster, plannivåer och användning så får
+              Benefitly bättre underlag.
             </p>
           </div>
         ) : (
           <div className="mt-6 space-y-6">
             {directOpportunities.length > 0 && (
               <div>
-                <h3 className="text-lg font-black">Kan pausas eller sägas upp</h3>
-                <p className="mt-1 text-sm text-slate-500">Hela kostnaden kan försvinna, men du bestämmer efter kontroll.</p>
+                <h3 className="text-lg font-black">
+                  Kan pausas eller sägas upp
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Hela kostnaden kan försvinna, men du bestämmer efter kontroll.
+                </p>
                 <div className="mt-3 space-y-3">
                   {directOpportunities.map((opportunity) => (
-                    <OpportunityCard key={opportunity.id} opportunity={opportunity} />
+                    <OpportunityCard
+                      key={opportunity.id}
+                      opportunity={opportunity}
+                    />
                   ))}
                 </div>
               </div>
@@ -4549,11 +5112,19 @@ function SavingsOpportunitiesSheet({
 
             {planOpportunities.length > 0 && (
               <div>
-                <h3 className="text-lg font-black">Billigare planer att överväga</h3>
-                <p className="mt-1 text-sm text-slate-500">Kontrollera funktioner som 4K, lagring, skärmar eller familjedelning innan byte.</p>
+                <h3 className="text-lg font-black">
+                  Billigare planer att överväga
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  Kontrollera funktioner som 4K, lagring, skärmar eller
+                  familjedelning innan byte.
+                </p>
                 <div className="mt-3 space-y-3">
                   {planOpportunities.map((opportunity) => (
-                    <OpportunityCard key={opportunity.id} opportunity={opportunity} />
+                    <OpportunityCard
+                      key={opportunity.id}
+                      opportunity={opportunity}
+                    />
                   ))}
                 </div>
               </div>
@@ -4562,10 +5133,16 @@ function SavingsOpportunitiesSheet({
             {overlapOpportunities.length > 0 && (
               <div>
                 <h3 className="text-lg font-black">Överlapp att jämföra</h3>
-                <p className="mt-1 text-sm text-slate-500">Här visas ingen totalsumma förrän Benefitly vet vilken tjänst du kan avstå från.</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Här visas ingen totalsumma förrän Benefitly vet vilken tjänst
+                  du kan avstå från.
+                </p>
                 <div className="mt-3 space-y-3">
                   {overlapOpportunities.map((opportunity) => (
-                    <OpportunityCard key={opportunity.id} opportunity={opportunity} />
+                    <OpportunityCard
+                      key={opportunity.id}
+                      opportunity={opportunity}
+                    />
                   ))}
                 </div>
               </div>
@@ -4585,7 +5162,15 @@ function SavingsOpportunitiesSheet({
   );
 }
 
-function ServiceAnalysisModal({ subscription, onClose, onCompare }: { subscription: Subscription; onClose: () => void; onCompare: () => void }) {
+function ServiceAnalysisModal({
+  subscription,
+  onClose,
+  onCompare,
+}: {
+  subscription: Subscription;
+  onClose: () => void;
+  onCompare: () => void;
+}) {
   const insights = getSmartCardInsights(subscription);
   const score = getBenefitlyScore(subscription);
   const scoreMeta = getBenefitlyScoreMeta(score);
@@ -4595,11 +5180,21 @@ function ServiceAnalysisModal({ subscription, onClose, onCompare }: { subscripti
       <section className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Benefitlys analys</p>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
+              Benefitlys analys
+            </p>
             <h2 className="mt-1 text-3xl font-black">{subscription.name}</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-500">{formatCurrency(getMonthlyPrice(subscription))}/mån · används {subscription.usage.toLowerCase()}</p>
+            <p className="mt-1 text-sm font-semibold text-slate-500">
+              {formatCurrency(getMonthlyPrice(subscription))}/mån · används{" "}
+              {subscription.usage.toLowerCase()}
+            </p>
           </div>
-          <button onClick={onClose} className="rounded-full bg-slate-100 px-3 py-1 text-sm font-black">✕</button>
+          <button
+            onClick={onClose}
+            className="rounded-full bg-slate-100 px-3 py-1 text-sm font-black"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-[130px_1fr]">
@@ -4609,53 +5204,106 @@ function ServiceAnalysisModal({ subscription, onClose, onCompare }: { subscripti
             <p className="mt-1 text-xs font-black">{scoreMeta.label}</p>
           </div>
           <div className="rounded-3xl bg-slate-50 p-5">
-            <p className="text-xs font-black uppercase tracking-wide text-slate-500">Rekommenderad åtgärd</p>
-            <p className="mt-2 text-lg font-black text-slate-950">{getRecommendedAction(subscription)}</p>
+            <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+              Rekommenderad åtgärd
+            </p>
+            <p className="mt-2 text-lg font-black text-slate-950">
+              {getRecommendedAction(subscription)}
+            </p>
           </div>
         </div>
 
         <div className="mt-5 rounded-3xl border border-slate-200 p-5">
           <h3 className="font-black">Det här baseras analysen på</h3>
           <ul className="mt-3 space-y-2 text-sm font-semibold text-slate-700">
-            {insights.map((item) => <li key={item}>• {item}</li>)}
+            {insights.map((item) => (
+              <li key={item}>• {item}</li>
+            ))}
           </ul>
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-          <button onClick={onClose} className="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-black text-slate-700">Stäng</button>
-          <button onClick={onCompare} className="rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-black text-white">Jämför planer och alternativ</button>
+          <button
+            onClick={onClose}
+            className="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-black text-slate-700"
+          >
+            Stäng
+          </button>
+          <button
+            onClick={onCompare}
+            className="rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-black text-white"
+          >
+            Jämför planer och alternativ
+          </button>
         </div>
       </section>
     </div>
   );
 }
 
-function ServiceComparisonModal({ subscription, subscriptions, onClose }: { subscription: Subscription; subscriptions: Subscription[]; onClose: () => void }) {
+function ServiceComparisonModal({
+  subscription,
+  subscriptions,
+  onClose,
+}: {
+  subscription: Subscription;
+  subscriptions: Subscription[];
+  onClose: () => void;
+}) {
   const [tab, setTab] = useState<"plans" | "alternatives" | "overlap">("plans");
   const plans = getPlanReferencesForService(subscription);
-  const category = getBenefitlyCategory(subscription.category, subscription.name);
-  const alternatives = subscriptions.filter((item) => item.id !== subscription.id && getBenefitlyCategory(item.category, item.name) === category);
-  const relatedOverlaps = getOverlapInsights(subscriptions).filter((insight) => normalizeText(insight.title).includes(normalizeText(subscription.name)) || normalizeText(insight.text).includes(normalizeText(subscription.name)));
+  const category = getBenefitlyCategory(
+    subscription.category,
+    subscription.name,
+  );
+  const alternatives = subscriptions.filter(
+    (item) =>
+      item.id !== subscription.id &&
+      getBenefitlyCategory(item.category, item.name) === category,
+  );
+  const relatedOverlaps = getOverlapInsights(subscriptions).filter(
+    (insight) =>
+      normalizeText(insight.title).includes(normalizeText(subscription.name)) ||
+      normalizeText(insight.text).includes(normalizeText(subscription.name)),
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 backdrop-blur-sm">
       <section className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[2rem] bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">Jämförelse</p>
+            <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
+              Jämförelse
+            </p>
             <h2 className="mt-1 text-3xl font-black">{subscription.name}</h2>
-            <p className="mt-1 text-sm font-semibold text-slate-500">Din plan: {subscription.plan || "inte angiven"} · {formatCurrency(getMonthlyPrice(subscription))}/mån</p>
+            <p className="mt-1 text-sm font-semibold text-slate-500">
+              Din plan: {subscription.plan || "inte angiven"} ·{" "}
+              {formatCurrency(getMonthlyPrice(subscription))}/mån
+            </p>
           </div>
-          <button onClick={onClose} className="rounded-full bg-slate-100 px-3 py-1 text-sm font-black">✕</button>
+          <button
+            onClick={onClose}
+            className="rounded-full bg-slate-100 px-3 py-1 text-sm font-black"
+          >
+            ✕
+          </button>
         </div>
 
         <div className="mt-6 flex gap-2 overflow-x-auto rounded-2xl bg-slate-100 p-1.5">
-          {([
-            ["plans", "Planer"],
-            ["alternatives", "Liknande tjänster"],
-            ["overlap", "Överlapp"],
-          ] as const).map(([value, label]) => (
-            <button key={value} onClick={() => setTab(value)} className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-black ${tab === value ? "bg-white text-emerald-800 shadow-sm" : "text-slate-600"}`}>{label}</button>
+          {(
+            [
+              ["plans", "Planer"],
+              ["alternatives", "Liknande tjänster"],
+              ["overlap", "Överlapp"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => setTab(value)}
+              className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-black ${tab === value ? "bg-white text-emerald-800 shadow-sm" : "text-slate-600"}`}
+            >
+              {label}
+            </button>
           ))}
         </div>
 
@@ -4664,23 +5312,39 @@ function ServiceComparisonModal({ subscription, subscriptions, onClose }: { subs
             {plans.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {plans.map((plan) => {
-                  const isCurrent = normalizeText(plan.planName) === normalizeText(subscription.plan ?? "");
+                  const isCurrent =
+                    normalizeText(plan.planName) ===
+                    normalizeText(subscription.plan ?? "");
                   return (
-                    <div key={plan.planName} className={`rounded-3xl border p-5 ${isCurrent ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}>
+                    <div
+                      key={plan.planName}
+                      className={`rounded-3xl border p-5 ${isCurrent ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-white"}`}
+                    >
                       <div className="flex items-center justify-between gap-2">
                         <h3 className="font-black">{plan.planName}</h3>
-                        {isCurrent && <span className="rounded-full bg-emerald-700 px-2.5 py-1 text-[11px] font-black text-white">Din plan</span>}
+                        {isCurrent && (
+                          <span className="rounded-full bg-emerald-700 px-2.5 py-1 text-[11px] font-black text-white">
+                            Din plan
+                          </span>
+                        )}
                       </div>
-                      <p className="mt-1 text-xs font-semibold text-slate-500">{plan.roughPriceLabel}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-500">
+                        {plan.roughPriceLabel}
+                      </p>
                       <ul className="mt-4 space-y-2 text-sm font-semibold text-slate-700">
-                        {plan.highlights.slice(0, 5).map((item) => <li key={item}>✓ {item}</li>)}
+                        {plan.highlights.slice(0, 5).map((item) => (
+                          <li key={item}>✓ {item}</li>
+                        ))}
                       </ul>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <ComparisonPlaceholder title="Planjämförelse är på väg" text="Vyn fungerar nu, men detaljerade planer finns ännu inte för den här tjänsten." />
+              <ComparisonPlaceholder
+                title="Planjämförelse är på väg"
+                text="Vyn fungerar nu, men detaljerade planer finns ännu inte för den här tjänsten."
+              />
             )}
           </div>
         )}
@@ -4690,20 +5354,33 @@ function ServiceComparisonModal({ subscription, subscriptions, onClose }: { subs
             {alternatives.length > 0 ? (
               <div className="space-y-3">
                 {alternatives.map((item) => (
-                  <div key={item.id} className="flex flex-col justify-between gap-3 rounded-3xl border border-slate-200 p-5 sm:flex-row sm:items-center">
+                  <div
+                    key={item.id}
+                    className="flex flex-col justify-between gap-3 rounded-3xl border border-slate-200 p-5 sm:flex-row sm:items-center"
+                  >
                     <div>
                       <p className="font-black">{item.name}</p>
-                      <p className="mt-1 text-sm font-semibold text-slate-500">{item.plan || "Plan ej angiven"} · används {item.usage.toLowerCase()}</p>
+                      <p className="mt-1 text-sm font-semibold text-slate-500">
+                        {item.plan || "Plan ej angiven"} · används{" "}
+                        {item.usage.toLowerCase()}
+                      </p>
                     </div>
                     <div className="text-left sm:text-right">
-                      <p className="font-black">{formatCurrency(getMonthlyPrice(item))}/mån</p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">Liknande kategori, men innehållet kan skilja sig</p>
+                      <p className="font-black">
+                        {formatCurrency(getMonthlyPrice(item))}/mån
+                      </p>
+                      <p className="mt-1 text-xs font-bold text-slate-500">
+                        Liknande kategori, men innehållet kan skilja sig
+                      </p>
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <ComparisonPlaceholder title="Inga liknande tjänster inlagda ännu" text="När du lägger till fler tjänster i samma kategori visas de här för enkel jämförelse." />
+              <ComparisonPlaceholder
+                title="Inga liknande tjänster inlagda ännu"
+                text="När du lägger till fler tjänster i samma kategori visas de här för enkel jämförelse."
+              />
             )}
           </div>
         )}
@@ -4713,14 +5390,22 @@ function ServiceComparisonModal({ subscription, subscriptions, onClose }: { subs
             {relatedOverlaps.length > 0 ? (
               <div className="space-y-3">
                 {relatedOverlaps.map((insight) => (
-                  <div key={insight.title} className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+                  <div
+                    key={insight.title}
+                    className="rounded-3xl border border-amber-200 bg-amber-50 p-5"
+                  >
                     <p className="font-black text-amber-950">{insight.title}</p>
-                    <p className="mt-2 text-sm font-semibold text-amber-900">{insight.text}</p>
+                    <p className="mt-2 text-sm font-semibold text-amber-900">
+                      {insight.text}
+                    </p>
                   </div>
                 ))}
               </div>
             ) : (
-              <ComparisonPlaceholder title="Inget tydligt överlapp hittat" text="Benefitly hittar fler samband när fler tjänster och planer är inlagda." />
+              <ComparisonPlaceholder
+                title="Inget tydligt överlapp hittat"
+                text="Benefitly hittar fler samband när fler tjänster och planer är inlagda."
+              />
             )}
           </div>
         )}
@@ -4729,12 +5414,20 @@ function ServiceComparisonModal({ subscription, subscriptions, onClose }: { subs
   );
 }
 
-function ComparisonPlaceholder({ title, text }: { title: string; text: string }) {
+function ComparisonPlaceholder({
+  title,
+  text,
+}: {
+  title: string;
+  text: string;
+}) {
   return (
     <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
       <p className="text-3xl">🔎</p>
       <h3 className="mt-3 text-xl font-black">{title}</h3>
-      <p className="mx-auto mt-2 max-w-lg text-sm font-medium text-slate-600">{text}</p>
+      <p className="mx-auto mt-2 max-w-lg text-sm font-medium text-slate-600">
+        {text}
+      </p>
     </div>
   );
 }
@@ -4939,9 +5632,9 @@ function DetectiveReport({
               Din första översikt börjar här
             </h2>
             <p className="mt-2 text-sm text-slate-600">
-              Lägg till 3–5 tjänster, till exempel streaming, mobil och kort.
-              Då kan Benefitly börja hitta kostnader, förmåner, överlapp och
-              en tydlig nästa åtgärd.
+              Lägg till 3–5 tjänster, till exempel streaming, mobil och kort. Då
+              kan Benefitly börja hitta kostnader, förmåner, överlapp och en
+              tydlig nästa åtgärd.
             </p>
           </div>
         </div>
@@ -4952,16 +5645,25 @@ function DetectiveReport({
   const firstOverlap = overlapInsights[0];
   const focusSubscription = getReportFocusSubscription(subscriptions);
   const reportCheckCount = checkItems.length;
-  const score = getOverallBenefitlyScore(subscriptions, checkItems, possibleMonthlySavings);
+  const score = getOverallBenefitlyScore(
+    subscriptions,
+    checkItems,
+    possibleMonthlySavings,
+  );
   const scoreText = getBenefitlyScoreText(score);
   const categoryCount = new Set(
-    subscriptions.map((item) =>
-      getBenefitlyCategory(item.category, item.name),
-    ),
+    subscriptions.map((item) => getBenefitlyCategory(item.category, item.name)),
   ).size;
-  const confirmedPrices = subscriptions.filter((item) => item.priceConfirmed).length;
-  const servicesWithPlan = subscriptions.filter((item) => item.plan?.trim()).length;
-  const hasUsefulSignals = reportCheckCount > 0 || overlapInsights.length > 0 || possibleMonthlySavings > 0;
+  const confirmedPrices = subscriptions.filter(
+    (item) => item.priceConfirmed,
+  ).length;
+  const servicesWithPlan = subscriptions.filter((item) =>
+    item.plan?.trim(),
+  ).length;
+  const hasUsefulSignals =
+    reportCheckCount > 0 ||
+    overlapInsights.length > 0 ||
+    possibleMonthlySavings > 0;
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -5150,7 +5852,15 @@ function getOverallBenefitlyScore(
 
   return Math.max(
     12,
-    Math.min(100, 24 + serviceCoverage + planCoverage + usageCoverage - pricePenalty - savingsPenalty),
+    Math.min(
+      100,
+      24 +
+        serviceCoverage +
+        planCoverage +
+        usageCoverage -
+        pricePenalty -
+        savingsPenalty,
+    ),
   );
 }
 
@@ -5256,7 +5966,6 @@ function StorageStatusBadge({ status }: { status: string }) {
   );
 }
 
-
 function PlanPriceWarningModal({
   message,
   onCancel,
@@ -5288,8 +5997,8 @@ function PlanPriceWarningModal({
         </div>
 
         <div className="mt-6 rounded-2xl bg-amber-50 p-4 text-sm font-semibold text-amber-900">
-          Du kan spara ändå om du vet att priset stämmer, till exempel vid kampanj,
-          familjedelning eller arbetsgivarförmån.
+          Du kan spara ändå om du vet att priset stämmer, till exempel vid
+          kampanj, familjedelning eller arbetsgivarförmån.
         </div>
 
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
@@ -5798,7 +6507,8 @@ function RecognizedServiceBox({
             onClick={onUseCategory}
             className="rounded-2xl bg-emerald-700 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-800"
           >
-            Använd kategori: {getBenefitlyCategory(service.category, service.displayName)}
+            Använd kategori:{" "}
+            {getBenefitlyCategory(service.category, service.displayName)}
           </button>
 
           <button
@@ -5831,7 +6541,8 @@ function InlinePlanPriceWarning({ message }: { message: string }) {
           </p>
           <p className="mt-1 text-sm font-bold leading-relaxed">{message}</p>
           <p className="mt-2 text-xs font-semibold text-amber-800">
-            Du kan ändå spara om priset stämmer, till exempel vid kampanj, delad kostnad eller arbetsgivarförmån.
+            Du kan ändå spara om priset stämmer, till exempel vid kampanj, delad
+            kostnad eller arbetsgivarförmån.
           </p>
         </div>
       </div>
@@ -5922,16 +6633,28 @@ function EmptyState({ onAddClick }: { onAddClick: () => void }) {
     <div className="rounded-3xl border border-dashed border-emerald-300 bg-white p-6 shadow-sm">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-start gap-4">
-          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-3xl">🔎</span>
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-3xl">
+            🔎
+          </span>
           <div>
-            <h3 className="text-xl font-black">Lägg till dina första tjänster</h3>
+            <h3 className="text-xl font-black">
+              Lägg till dina första tjänster
+            </h3>
             <p className="mt-1 max-w-xl text-sm leading-relaxed text-slate-600">
-              Börja med tre saker du redan betalar för. Då kan Benefitly visa kostnader, förmåner, möjliga besparingar och vad du bör kontrollera först.
+              Börja med tre saker du redan betalar för. Då kan Benefitly visa
+              kostnader, förmåner, möjliga besparingar och vad du bör
+              kontrollera först.
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs font-bold text-slate-700">
-              <span className="rounded-full bg-slate-100 px-3 py-1.5">📺 Streaming</span>
-              <span className="rounded-full bg-slate-100 px-3 py-1.5">📱 Mobil</span>
-              <span className="rounded-full bg-slate-100 px-3 py-1.5">💳 Medlemskap eller kort</span>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                📺 Streaming
+              </span>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                📱 Mobil
+              </span>
+              <span className="rounded-full bg-slate-100 px-3 py-1.5">
+                💳 Medlemskap eller kort
+              </span>
             </div>
           </div>
         </div>
@@ -6082,7 +6805,6 @@ function getServiceIcon(subscription: Subscription) {
   };
 }
 
-
 type PlanReference = {
   planName: string;
   priceLevel: "budget" | "standard" | "premium" | "highest";
@@ -6124,7 +6846,9 @@ function getPriceLevelClassName(level: PlanReference["priceLevel"]) {
   return "border-slate-200 bg-slate-50 text-slate-700";
 }
 
-function getPlanReferencesForService(subscription: Subscription): PlanReference[] {
+function getPlanReferencesForService(
+  subscription: Subscription,
+): PlanReference[] {
   const normalizedName = normalizeText(subscription.name);
 
   if (normalizedName.includes("netflix")) {
@@ -6315,7 +7039,10 @@ function getPlanReferencesForService(subscription: Subscription): PlanReference[
     ];
   }
 
-  if (normalizedName.includes("microsoft 365") || normalizedName.includes("office")) {
+  if (
+    normalizedName.includes("microsoft 365") ||
+    normalizedName.includes("office")
+  ) {
     return [
       {
         planName: "Personal",
@@ -6374,7 +7101,8 @@ function getSelectedPlanPriceRange(subscription: Subscription) {
   return (
     Object.values(activePlanPriceRangeMap).find(
       (range) =>
-        normalizeText(range.serviceDisplayName) === normalizeText(serviceName) &&
+        normalizeText(range.serviceDisplayName) ===
+          normalizeText(serviceName) &&
         normalizeText(range.planName) === selectedPlanText &&
         range.currency === activeCurrency &&
         range.billingPeriod === "monthly",
@@ -6391,8 +7119,12 @@ function getSelectedPlanReference(subscription: Subscription) {
   }
 
   return (
-    planReferences.find((plan) => normalizeText(plan.planName) === selectedPlan) ??
-    planReferences.find((plan) => selectedPlan.includes(normalizeText(plan.planName))) ??
+    planReferences.find(
+      (plan) => normalizeText(plan.planName) === selectedPlan,
+    ) ??
+    planReferences.find((plan) =>
+      selectedPlan.includes(normalizeText(plan.planName)),
+    ) ??
     null
   );
 }
@@ -6468,7 +7200,12 @@ function getDraftPlanPriceWarningMessage({
 }) {
   const priceAsNumber = Math.round(Number(price));
 
-  if (!name || price === "" || Number.isNaN(priceAsNumber) || priceAsNumber < 0) {
+  if (
+    !name ||
+    price === "" ||
+    Number.isNaN(priceAsNumber) ||
+    priceAsNumber < 0
+  ) {
     return null;
   }
 
@@ -6490,8 +7227,10 @@ function getPlanPriceWarningMessage(subscription: Subscription) {
   const selectedPlan = getSelectedPlanReference(subscription);
   const selectedPlanRange = getSelectedPlanPriceRange(subscription);
   const planName = selectedPlanRange?.planName ?? selectedPlan?.planName;
-  const minPrice = selectedPlanRange?.typicalMinPrice ?? selectedPlan?.roughMonthlyMin;
-  const maxPrice = selectedPlanRange?.typicalMaxPrice ?? selectedPlan?.roughMonthlyMax;
+  const minPrice =
+    selectedPlanRange?.typicalMinPrice ?? selectedPlan?.roughMonthlyMin;
+  const maxPrice =
+    selectedPlanRange?.typicalMaxPrice ?? selectedPlan?.roughMonthlyMax;
 
   if (!sanity || !planName || !minPrice || !maxPrice) {
     return null;
@@ -6515,7 +7254,8 @@ function getPlanPosition(subscription: Subscription) {
   }
 
   const index = planReferences.findIndex(
-    (plan) => normalizeText(plan.planName) === normalizeText(selectedPlan.planName),
+    (plan) =>
+      normalizeText(plan.planName) === normalizeText(selectedPlan.planName),
   );
 
   if (index < 0) {
@@ -6562,7 +7302,11 @@ function getBenefitlyScore(subscription: Subscription) {
     score -= 2;
   }
 
-  if (planPosition && planPosition.cheaperPlans.length > 0 && subscription.usage !== "Ofta") {
+  if (
+    planPosition &&
+    planPosition.cheaperPlans.length > 0 &&
+    subscription.usage !== "Ofta"
+  ) {
     score -= 10;
   }
 
@@ -6602,41 +7346,64 @@ function getSmartCardInsights(subscription: Subscription) {
   const planPosition = getPlanPosition(subscription);
 
   if (subscription.usage === "Ofta") {
-    insights.push("Du använder tjänsten ofta, vilket gör den lättare att motivera.");
+    insights.push(
+      "Du använder tjänsten ofta, vilket gör den lättare att motivera.",
+    );
   } else if (subscription.usage === "Ibland") {
-    insights.push("Du använder tjänsten ibland. Kontrollera om vald plan matchar behovet.");
+    insights.push(
+      "Du använder tjänsten ibland. Kontrollera om vald plan matchar behovet.",
+    );
   } else {
-    insights.push("Tjänsten används sällan, så den är värd att kontrollera först.");
+    insights.push(
+      "Tjänsten används sällan, så den är värd att kontrollera först.",
+    );
   }
 
   if (priceSanity?.level === "low") {
-    insights.push("Priset verkar ovanligt lågt. Kontrollera om det är kampanj, delad kostnad eller fel period.");
+    insights.push(
+      "Priset verkar ovanligt lågt. Kontrollera om det är kampanj, delad kostnad eller fel period.",
+    );
   } else if (priceSanity) {
-    insights.push("Priset sticker ut. Kontrollera att beloppet och betalperioden är rätt.");
+    insights.push(
+      "Priset sticker ut. Kontrollera att beloppet och betalperioden är rätt.",
+    );
   }
 
   if (planReferences.length > 1) {
     if (!subscription.plan) {
       insights.push("Lägg till plan för att få bättre analys och jämförelse.");
     } else if (selectedPlanReference && planPosition) {
-      if (planPosition.cheaperPlans.length > 0 && subscription.usage !== "Ofta") {
-        insights.push("Det finns billigare prisnivåer. Jämför innehållet innan du byter.");
+      if (
+        planPosition.cheaperPlans.length > 0 &&
+        subscription.usage !== "Ofta"
+      ) {
+        insights.push(
+          "Det finns billigare prisnivåer. Jämför innehållet innan du byter.",
+        );
       } else if (planPosition.cheaperPlans.length > 0) {
-        insights.push("Du har inte lägsta prisnivån, men hög användning kan göra planen rimlig.");
+        insights.push(
+          "Du har inte lägsta prisnivån, men hög användning kan göra planen rimlig.",
+        );
       } else {
         insights.push("Du verkar ha en låg prisnivå för den här tjänsten.");
       }
     } else {
-      insights.push("Planen känns inte igen exakt. Välj en vanlig plan om du vill jämföra bättre.");
+      insights.push(
+        "Planen känns inte igen exakt. Välj en vanlig plan om du vill jämföra bättre.",
+      );
     }
   }
 
   if (subscription.benefits.length >= 10) {
-    insights.push(`Benefitly känner till ${subscription.benefits.length} innehållspunkter för den här planen.`);
+    insights.push(
+      `Benefitly känner till ${subscription.benefits.length} innehållspunkter för den här planen.`,
+    );
   }
 
   if (insights.length < 3) {
-    insights.push("Fler inlagda tjänster ger bättre överlapp och smartare råd.");
+    insights.push(
+      "Fler inlagda tjänster ger bättre överlapp och smartare råd.",
+    );
   }
 
   return insights.slice(0, 4);
@@ -6652,7 +7419,11 @@ function getSelectedPlanContent(subscription: Subscription) {
   return selectedPlanReference?.highlights ?? [];
 }
 
-function PlanComparisonSection({ subscription }: { subscription: Subscription }) {
+function PlanComparisonSection({
+  subscription,
+}: {
+  subscription: Subscription;
+}) {
   const [showPlans, setShowPlans] = useState(false);
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
   const planReferences = getPlanReferencesForService(subscription);
@@ -6678,7 +7449,8 @@ function PlanComparisonSection({ subscription }: { subscription: Subscription })
       {showPlans && (
         <div className="mt-3 space-y-3">
           <div className="rounded-2xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
-            Priserna visas som ungefärliga prisnivåer. Kontrollera alltid aktuellt pris hos leverantören.
+            Priserna visas som ungefärliga prisnivåer. Kontrollera alltid
+            aktuellt pris hos leverantören.
           </div>
 
           {planReferences.map((plan) => {
@@ -6686,27 +7458,38 @@ function PlanComparisonSection({ subscription }: { subscription: Subscription })
             const isExpanded = expandedPlan === plan.planName;
 
             return (
-              <div key={plan.planName} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div
+                key={plan.planName}
+                className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+              >
                 <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-black text-slate-950">{plan.planName}</p>
+                      <p className="font-black text-slate-950">
+                        {plan.planName}
+                      </p>
                       {isCurrentPlan && (
                         <span className="rounded-full bg-emerald-700 px-2.5 py-1 text-[11px] font-black text-white">
                           Din plan
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-xs font-semibold text-slate-500">{plan.roughPriceLabel}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {plan.roughPriceLabel}
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-2">
-                    <span className={`rounded-full border px-3 py-1 text-xs font-black ${getPriceLevelClassName(plan.priceLevel)}`}>
+                    <span
+                      className={`rounded-full border px-3 py-1 text-xs font-black ${getPriceLevelClassName(plan.priceLevel)}`}
+                    >
                       {getPriceLevelLabel(plan.priceLevel)}
                     </span>
                     <button
                       type="button"
-                      onClick={() => setExpandedPlan(isExpanded ? null : plan.planName)}
+                      onClick={() =>
+                        setExpandedPlan(isExpanded ? null : plan.planName)
+                      }
                       className="rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-black text-slate-700 hover:bg-slate-100"
                     >
                       {isExpanded ? "Dölj" : "Visa innehåll"}
@@ -6717,7 +7500,10 @@ function PlanComparisonSection({ subscription }: { subscription: Subscription })
                 {isExpanded && (
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     {plan.highlights.map((highlight) => (
-                      <div key={highlight} className="rounded-2xl bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm">
+                      <div
+                        key={highlight}
+                        className="rounded-2xl bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
+                      >
                         ✓ {highlight}
                       </div>
                     ))}
@@ -6732,13 +7518,19 @@ function PlanComparisonSection({ subscription }: { subscription: Subscription })
   );
 }
 
-function SelectedPlanContentSection({ subscription }: { subscription: Subscription }) {
+function SelectedPlanContentSection({
+  subscription,
+}: {
+  subscription: Subscription;
+}) {
   const [showContent, setShowContent] = useState(false);
   const [showAllContent, setShowAllContent] = useState(false);
   const previewCount = 6;
   const content = getSelectedPlanContent(subscription);
   const hasManyItems = content.length > previewCount;
-  const visibleItems = showAllContent ? content : content.slice(0, previewCount);
+  const visibleItems = showAllContent
+    ? content
+    : content.slice(0, previewCount);
 
   if (content.length === 0) {
     return null;
@@ -6761,7 +7553,11 @@ function SelectedPlanContentSection({ subscription }: { subscription: Subscripti
         onClick={handleToggleContent}
         className="flex w-full items-center justify-between text-left text-sm font-bold text-slate-700"
       >
-        <span>{subscription.plan ? `Innehåll i ${subscription.plan}` : "Förmåner och innehåll"}</span>
+        <span>
+          {subscription.plan
+            ? `Innehåll i ${subscription.plan}`
+            : "Förmåner och innehåll"}
+        </span>
         <span className="text-xs font-black text-slate-500">
           {showContent
             ? "Dölj ▲"
@@ -6796,7 +7592,9 @@ function SelectedPlanContentSection({ subscription }: { subscription: Subscripti
               onClick={() => setShowAllContent(!showAllContent)}
               className="mt-3 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 shadow-sm hover:bg-slate-100"
             >
-              {showAllContent ? "Visa färre" : `Visa alla ${content.length} punkter`}
+              {showAllContent
+                ? "Visa färre"
+                : `Visa alla ${content.length} punkter`}
             </button>
           )}
         </div>
@@ -6827,8 +7625,10 @@ function SubscriptionCard({
   const scoreMeta = getBenefitlyScoreMeta(benefitlyScore);
   const smartInsights = getSmartCardInsights(subscription);
   const planPriceWarningMessage = getPlanPriceWarningMessage(subscription);
-  const [isPlanPriceWarningHidden, setIsPlanPriceWarningHidden] = useState(false);
-  const shouldShowPlanPriceWarning = Boolean(planPriceWarningMessage) && !isPlanPriceWarningHidden;
+  const [isPlanPriceWarningHidden, setIsPlanPriceWarningHidden] =
+    useState(false);
+  const shouldShowPlanPriceWarning =
+    Boolean(planPriceWarningMessage) && !isPlanPriceWarningHidden;
 
   return (
     <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
@@ -6898,7 +7698,9 @@ function SubscriptionCard({
 
         <div className="mt-4 grid gap-3 md:grid-cols-[150px_1fr]">
           <div className={`rounded-2xl border p-4 ${scoreMeta.className}`}>
-            <p className="text-xs font-black uppercase tracking-wide opacity-80">Benefitly Score</p>
+            <p className="text-xs font-black uppercase tracking-wide opacity-80">
+              Benefitly Score
+            </p>
             <p className="mt-1 text-3xl font-black">{benefitlyScore}</p>
             <p className="mt-1 text-xs font-black">{scoreMeta.label}</p>
           </div>
@@ -6909,7 +7711,10 @@ function SubscriptionCard({
             </p>
             <ul className="mt-2 space-y-1.5">
               {smartInsights.map((insight) => (
-                <li key={insight} className="flex gap-2 text-sm font-semibold text-slate-800">
+                <li
+                  key={insight}
+                  className="flex gap-2 text-sm font-semibold text-slate-800"
+                >
                   <span className="text-emerald-700">•</span>
                   <span>{insight}</span>
                 </li>
@@ -6949,7 +7754,9 @@ function SubscriptionCard({
           <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
             Rekommenderad åtgärd
           </p>
-          <p className="mt-1 text-sm font-bold text-slate-800">{recommendedAction}</p>
+          <p className="mt-1 text-sm font-bold text-slate-800">
+            {recommendedAction}
+          </p>
         </div>
       </div>
 
