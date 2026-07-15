@@ -2026,6 +2026,12 @@ export default function Home() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-gradient-to-br from-slate-50 via-white to-emerald-50 text-slate-950">
+      <style>{`
+        @keyframes benefitlyPanelIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
       <section className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <header className="mb-8">
           <div className="sticky top-0 z-30 -mx-4 mb-8 border-b border-slate-200/80 bg-white/90 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
@@ -2483,6 +2489,7 @@ export default function Home() {
                 <CompactSubscriptionRow
                   key={subscription.id}
                   subscription={subscription}
+                  subscriptions={subscriptions}
                   onDelete={handleDeleteSubscription}
                   onEdit={handleEditSubscription}
                   onConfirmPrice={handleConfirmPrice}
@@ -3653,6 +3660,109 @@ function shouldShowRecommendationReason(subscription: Subscription) {
   return false;
 }
 
+function isInstructionalBenefitText(benefit: string) {
+  const normalized = normalizeText(benefit);
+  const phrases = [
+    "kontrollera",
+    "kan överlappa",
+    "kan ingå",
+    "kan bero",
+    "lägg gärna",
+    "angiven plan",
+    "jämför",
+    "betalar dubbelt",
+    "kostar extra",
+  ];
+
+  return phrases.some((phrase) => normalized.includes(phrase));
+}
+
+function getCuratedBenefitsForService(name: string, plan?: string) {
+  const normalizedName = normalizeText(name);
+  const normalizedPlan = getPlanText(plan);
+
+  if (
+    normalizedName.includes("amazon prime") ||
+    normalizedName.includes("prime video")
+  ) {
+    return [
+      "Prime Video",
+      "Fri frakt på utvalda Prime-leveranser",
+      "Prime Gaming",
+      "Prime Reading",
+      "Amazon Photos",
+      "Prime-erbjudanden och kampanjer",
+    ];
+  }
+
+  if (normalizedName.includes("netflix")) {
+    return [
+      "Filmer och serier",
+      "Profiler och barnprofil",
+      "Nedladdningar för offlinevisning",
+      "Flera samtidiga strömmar",
+      normalizedPlan.includes("premium")
+        ? "4K och HDR"
+        : "HD- eller Full HD-kvalitet",
+    ];
+  }
+
+  if (normalizedName.includes("disney")) {
+    return [
+      "Disney-filmer och serier",
+      "Pixar",
+      "Marvel",
+      "Star Wars",
+      "National Geographic",
+      "Barnprofiler och nedladdningar",
+    ];
+  }
+
+  if (normalizedName.includes("spotify")) {
+    return [
+      "Musik utan reklam",
+      "Offline-lyssning",
+      "Podcasts och ljudinnehåll",
+      "Högre ljudkvalitet",
+      "Delning med Duo eller Family",
+      "Personliga spellistor och rekommendationer",
+    ];
+  }
+
+  if (normalizedName.includes("microsoft 365")) {
+    return [
+      "Word",
+      "Excel",
+      "PowerPoint",
+      "Outlook",
+      "OneDrive-lagring",
+      "Familjedelning",
+    ];
+  }
+
+  if (normalizedName.includes("google one")) {
+    return [
+      "Extra Google Drive-lagring",
+      "Google Photos-lagring",
+      "Backup av mobil",
+      "Familjedelning",
+      "Extra support och medlemsförmåner",
+    ];
+  }
+
+  if (normalizedName.includes("icloud")) {
+    return [
+      "iCloud-lagring",
+      "Backup av iPhone och iPad",
+      "Synkning av bilder",
+      "Synkning av filer och enheter",
+      "Familjedelning",
+    ];
+  }
+
+  return null;
+}
+
 function getBenefitsForSubscription(
   name: string,
   category: string,
@@ -3660,13 +3770,21 @@ function getBenefitsForSubscription(
   services: KnownService[] = knownServices,
   planFeatureMap?: PlanFeatureMap,
 ) {
+  const curatedBenefits = getCuratedBenefitsForService(name, plan);
+
+  if (curatedBenefits) {
+    return curatedBenefits;
+  }
+
   const planFeatures = getPlanFeaturesForSubscription(
     name,
     plan,
     services,
     planFeatureMap,
   );
-  const featureBenefits = getFeatureBenefitTexts(planFeatures);
+  const featureBenefits = getFeatureBenefitTexts(planFeatures).filter(
+    (benefit) => !isInstructionalBenefitText(benefit),
+  );
 
   if (featureBenefits.length > 0) {
     return featureBenefits;
@@ -4640,8 +4758,52 @@ function BenefitlyInbox({
   );
 }
 
+function getBenefitUsageAssessment(
+  subscription: Subscription,
+  usedCount: number,
+  totalCount: number,
+) {
+  if (totalCount === 0 || usedCount === 0) {
+    return {
+      title: "Markera det du använder",
+      text: "Då kan Benefitly bedöma om tjänsten ger dig tillräckligt värde och om en billigare plan kan räcka.",
+      icon: "?",
+      className: "border-slate-200 bg-slate-50 text-slate-950",
+    };
+  }
+
+  const usageRatio = usedCount / totalCount;
+  const usedLabel = usedCount === 1 ? "en förmån" : `${usedCount} förmåner`;
+
+  if (usageRatio >= 0.7) {
+    return {
+      title: "Du får ut mycket av tjänsten",
+      text: `Du använder ${usedLabel}. ${subscription.plan ? `${subscription.plan} verkar passa bra` : "Tjänsten verkar ge bra värde"}, men pris och överlapp bör fortfarande jämföras.`,
+      icon: "✓",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-950",
+    };
+  }
+
+  if (usageRatio >= 0.35) {
+    return {
+      title: "Du använder delar av värdet",
+      text: `Du använder ${usedLabel}. Kontrollera om en billigare plan innehåller just de delar du behöver.`,
+      icon: "↔",
+      className: "border-sky-200 bg-sky-50 text-sky-950",
+    };
+  }
+
+  return {
+    title: "Begränsat värde just nu",
+    text: `Du använder bara ${usedLabel}. En billigare plan eller en mer specialiserad tjänst kan vara bättre.`,
+    icon: "↓",
+    className: "border-amber-200 bg-amber-50 text-amber-950",
+  };
+}
+
 function CompactSubscriptionRow({
   subscription,
+  subscriptions,
   onDelete,
   onEdit,
   onConfirmPrice,
@@ -4649,32 +4811,179 @@ function CompactSubscriptionRow({
   onCompare,
 }: {
   subscription: Subscription;
+  subscriptions: Subscription[];
   onDelete: (id: string) => void;
   onEdit: (subscription: Subscription) => void;
   onConfirmPrice: (id: string) => void;
   onShowAnalysis: (subscription: Subscription) => void;
   onCompare: (subscription: Subscription) => void;
 }) {
-  const [openPanel, setOpenPanel] = useState<"benefits" | "more" | null>(null);
+  const [openPanel, setOpenPanel] = useState<
+    "benefits" | "comparison" | "more" | null
+  >(null);
+  const [comparisonTab, setComparisonTab] = useState<
+    "plans" | "alternatives" | "overlap"
+  >("plans");
   const [showMobileActions, setShowMobileActions] = useState(false);
+  const [showDesktopActions, setShowDesktopActions] = useState(false);
+  const [benefitUsage, setBenefitUsage] = useState<Record<string, boolean>>({});
+  const [hasLoadedBenefitUsage, setHasLoadedBenefitUsage] = useState(false);
+  const hideActionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const benefitsPanelRef = useRef<HTMLDivElement | null>(null);
+  const inlinePanelRef = useRef<HTMLDivElement | null>(null);
   const icon = getServiceIcon(subscription);
   const score = getBenefitlyScore(subscription);
   const scoreMeta = getBenefitlyScoreMeta(score);
   const action = getRecommendedAction(subscription);
   const rawPriceSanity = getRawPriceSanity(subscription);
 
+  function clearHideActionsTimer() {
+    if (hideActionsTimerRef.current) {
+      clearTimeout(hideActionsTimerRef.current);
+      hideActionsTimerRef.current = null;
+    }
+  }
+
+  function showActions() {
+    clearHideActionsTimer();
+    setShowDesktopActions(true);
+  }
+
+  function scheduleHideActions() {
+    clearHideActionsTimer();
+
+    hideActionsTimerRef.current = setTimeout(() => {
+      const rowStillHasFocus = rowRef.current?.contains(document.activeElement);
+
+      if (!rowStillHasFocus && openPanel === null) {
+        setShowDesktopActions(false);
+      }
+    }, 180);
+  }
+
   function togglePanel(panel: "benefits" | "more") {
+    clearHideActionsTimer();
+    setShowDesktopActions(true);
     setOpenPanel((currentPanel) => (currentPanel === panel ? null : panel));
   }
+
+  function openInlineComparison() {
+    clearHideActionsTimer();
+    setShowDesktopActions(true);
+    setComparisonTab("plans");
+    setOpenPanel("comparison");
+  }
+
+  useEffect(() => {
+    if (openPanel !== "benefits" && openPanel !== "comparison") {
+      return;
+    }
+
+    const firstFrame = window.requestAnimationFrame(() => {
+      const secondFrame = window.requestAnimationFrame(() => {
+        const target =
+          openPanel === "benefits"
+            ? benefitsPanelRef.current
+            : inlinePanelRef.current;
+
+        target?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+
+      return () => window.cancelAnimationFrame(secondFrame);
+    });
+
+    return () => window.cancelAnimationFrame(firstFrame);
+  }, [openPanel]);
+
+  useEffect(() => {
+    return () => clearHideActionsTimer();
+  }, []);
+
+  useEffect(() => {
+    const storageKey = `benefitUsage:${subscription.id}`;
+    const savedUsage = localStorage.getItem(storageKey);
+
+    if (savedUsage) {
+      try {
+        setBenefitUsage(JSON.parse(savedUsage) as Record<string, boolean>);
+      } catch {
+        setBenefitUsage({});
+      }
+    } else {
+      setBenefitUsage({});
+    }
+
+    setHasLoadedBenefitUsage(true);
+  }, [subscription.id]);
+
+  useEffect(() => {
+    if (!hasLoadedBenefitUsage) {
+      return;
+    }
+
+    localStorage.setItem(
+      `benefitUsage:${subscription.id}`,
+      JSON.stringify(benefitUsage),
+    );
+  }, [benefitUsage, hasLoadedBenefitUsage, subscription.id]);
+
+  function toggleBenefitUsage(benefit: string) {
+    setBenefitUsage((current) => ({
+      ...current,
+      [benefit]: !current[benefit],
+    }));
+  }
+
+  const usedBenefits = subscription.benefits.filter(
+    (benefit) => benefitUsage[benefit],
+  );
+  const unusedBenefits = subscription.benefits.filter(
+    (benefit) => !benefitUsage[benefit],
+  );
+  const benefitAssessment = getBenefitUsageAssessment(
+    subscription,
+    usedBenefits.length,
+    subscription.benefits.length,
+  );
+  const benefitUsageRatio =
+    subscription.benefits.length > 0
+      ? usedBenefits.length / subscription.benefits.length
+      : 0;
+  const benefitCompareLabel =
+    usedBenefits.length === 0
+      ? "Markera vad du använder först"
+      : benefitUsageRatio < 0.35
+        ? "Jämför billigare alternativ"
+        : benefitUsageRatio < 0.7
+          ? "Kontrollera billigare plan"
+          : "Se planer och alternativ";
 
   const quickActionClassName =
     "group/action relative flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200/80 bg-white/95 text-slate-500 shadow-[0_2px_8px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-800 hover:shadow-[0_8px_20px_rgba(5,150,105,0.14)] focus:outline-none focus:ring-2 focus:ring-emerald-500/60 focus:ring-offset-2";
 
   const tooltipClassName =
-    "pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white opacity-0 shadow-lg transition-all duration-150 after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-[4px] after:border-transparent after:border-t-slate-950 group-hover/action:translate-y-0 group-hover/action:opacity-100 group-focus/action:translate-y-0 group-focus/action:opacity-100";
+    "pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-lg bg-slate-950 px-2.5 py-1 text-[10px] font-semibold tracking-wide text-white opacity-0 shadow-lg transition-all duration-150 delay-0 after:absolute after:left-1/2 after:top-full after:-translate-x-1/2 after:border-[4px] after:border-transparent after:border-t-slate-950 group-hover/action:translate-y-0 group-hover/action:opacity-100 group-hover/action:delay-300 group-focus/action:translate-y-0 group-focus/action:opacity-100 group-focus/action:delay-0";
 
   return (
-    <div className="group relative border-b border-slate-200 transition-all duration-300 last:border-b-0 hover:z-10 hover:bg-gradient-to-r hover:from-white hover:via-emerald-50/35 hover:to-white hover:shadow-[0_14px_34px_rgba(15,23,42,0.10)] focus-within:z-10 focus-within:bg-emerald-50/35 focus-within:shadow-[0_14px_34px_rgba(15,23,42,0.10)]">
+    <div
+      ref={rowRef}
+      tabIndex={0}
+      onMouseEnter={showActions}
+      onMouseLeave={scheduleHideActions}
+      onFocusCapture={showActions}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          scheduleHideActions();
+        }
+      }}
+      className="group relative border-b border-slate-200 outline-none transition-all duration-300 last:border-b-0 hover:z-10 hover:bg-gradient-to-r hover:from-white hover:via-emerald-50/35 hover:to-white hover:shadow-[0_14px_34px_rgba(15,23,42,0.10)] focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400/60 focus-within:z-10 focus-within:bg-emerald-50/35 focus-within:shadow-[0_14px_34px_rgba(15,23,42,0.10)]"
+    >
       <div className="grid items-center gap-4 px-5 py-4 transition-all duration-300 ease-out group-hover:-translate-y-0.5 group-focus-within:-translate-y-0.5 lg:grid-cols-[minmax(0,1.4fr)_120px_105px_minmax(180px,1fr)_auto] lg:pr-7">
         <div className="flex min-w-0 items-center gap-3">
           <div
@@ -4714,7 +5023,13 @@ function CompactSubscriptionRow({
         </p>
 
         <div className="flex items-center justify-end lg:pr-2">
-          <div className="hidden origin-right items-center gap-2.5 translate-x-5 scale-[0.96] opacity-0 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-0 group-hover:scale-100 group-hover:opacity-100 group-focus-within:translate-x-0 group-focus-within:scale-100 group-focus-within:opacity-100 lg:flex">
+          <div
+            className={`hidden origin-right items-center gap-2.5 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:flex ${
+              showDesktopActions || openPanel !== null
+                ? "pointer-events-auto translate-x-0 scale-100 opacity-100"
+                : "pointer-events-none translate-x-5 scale-[0.96] opacity-0"
+            }`}
+          >
             <button
               type="button"
               onClick={() => onShowAnalysis(subscription)}
@@ -4859,38 +5174,192 @@ function CompactSubscriptionRow({
       )}
 
       {openPanel === "benefits" && (
-        <div className="border-t border-emerald-100 bg-emerald-50/70 px-5 py-4">
+        <div
+          ref={benefitsPanelRef}
+          className="scroll-mt-24 border-t border-emerald-100 bg-gradient-to-b from-emerald-50/80 to-white px-5 py-5"
+        >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
-                Förmåner och innehåll
-              </p>
-              <h3 className="mt-1 font-black text-emerald-950">
-                Det här känner Benefitly till just nu
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-black uppercase tracking-wide text-emerald-700">
+                  Ditt värde i tjänsten
+                </p>
+                <span className="rounded-full bg-white px-2.5 py-1 text-[11px] font-black text-emerald-800 shadow-sm ring-1 ring-emerald-100">
+                  {usedBenefits.length} av {subscription.benefits.length}{" "}
+                  används
+                </span>
+              </div>
+              <h3 className="mt-2 text-lg font-black text-emerald-950">
+                Vad använder du i {subscription.name}?
               </h3>
-              <p className="mt-1 text-sm font-medium text-emerald-900">
-                Senare kan samma yta även visa aktiva rabatter, oanvända
-                förmåner och frågor som behövs för ett säkrare råd.
+              <p className="mt-1 max-w-2xl text-sm font-medium text-slate-600">
+                Markera de delar som faktiskt ger dig värde. Benefitly använder
+                svaren för bättre planjämförelser och rekommendationer.
               </p>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
+                <span className="rounded-full bg-white px-3 py-1.5 text-slate-700 ring-1 ring-slate-200">
+                  {subscription.benefits.length} ingår
+                </span>
+                <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-emerald-800">
+                  {usedBenefits.length} används
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1.5 text-slate-600">
+                  {unusedBenefits.length} ej markerade
+                </span>
+              </div>
             </div>
             <button
               type="button"
               onClick={() => setOpenPanel(null)}
-              className="self-start rounded-full bg-white px-3 py-1 text-xs font-black text-emerald-800 shadow-sm"
+              className="self-start rounded-full bg-white px-3 py-1 text-xs font-black text-emerald-800 shadow-sm ring-1 ring-emerald-100 hover:bg-emerald-50"
             >
               Stäng
             </button>
           </div>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {subscription.benefits.slice(0, 6).map((benefit) => (
-              <div
-                key={benefit}
-                className="rounded-2xl border border-emerald-100 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm"
-              >
-                ✓ {benefit}
+          <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.55fr)_minmax(260px,0.75fr)]">
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                Ingår i tjänsten
+              </p>
+              <div className="mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                {subscription.benefits.slice(0, 8).map((benefit, index) => {
+                  const isUsed = Boolean(benefitUsage[benefit]);
+
+                  return (
+                    <button
+                      key={benefit}
+                      type="button"
+                      onClick={() => toggleBenefitUsage(benefit)}
+                      aria-pressed={isUsed}
+                      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+                        index > 0 ? "border-t border-slate-100" : ""
+                      } ${
+                        isUsed
+                          ? "bg-emerald-50 text-emerald-950"
+                          : "bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs font-black transition ${
+                          isUsed
+                            ? "border-emerald-700 bg-emerald-700 text-white"
+                            : "border-slate-300 bg-white text-transparent"
+                        }`}
+                      >
+                        ✓
+                      </span>
+                      <span className="min-w-0 flex-1 text-sm font-bold">
+                        {benefit}
+                      </span>
+                      <span
+                        className={`text-xs font-black ${
+                          isUsed ? "text-emerald-700" : "text-slate-400"
+                        }`}
+                      >
+                        {isUsed ? "Används" : "Markera"}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            ))}
+              <p className="mt-2 text-xs font-semibold text-slate-500">
+                Markera bara sådant du faktiskt använder eller får värde av.
+              </p>
+            </div>
+
+            <aside
+              className={`rounded-3xl border p-4 ${benefitAssessment.className}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wide opacity-75">
+                    Benefitlys bedömning
+                  </p>
+                  <h4 className="mt-1 text-lg font-black">
+                    {benefitAssessment.title}
+                  </h4>
+                </div>
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/75 text-lg shadow-sm">
+                  {benefitAssessment.icon}
+                </span>
+              </div>
+              <p className="mt-3 text-sm font-semibold leading-relaxed">
+                {benefitAssessment.text}
+              </p>
+
+              <div className="mt-4 rounded-2xl bg-white/75 p-3 shadow-sm">
+                <div className="flex items-center justify-between text-xs font-black">
+                  <span>Användningsgrad</span>
+                  <span>
+                    {subscription.benefits.length > 0
+                      ? Math.round(
+                          (usedBenefits.length / subscription.benefits.length) *
+                            100,
+                        )
+                      : 0}
+                    %
+                  </span>
+                </div>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200/80">
+                  <div
+                    className="h-full rounded-full bg-emerald-600 transition-all duration-300"
+                    style={{
+                      width: `${
+                        subscription.benefits.length > 0
+                          ? (usedBenefits.length /
+                              subscription.benefits.length) *
+                            100
+                          : 0
+                      }%`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              {unusedBenefits.length > 0 && usedBenefits.length > 0 && (
+                <p className="mt-3 text-xs font-bold opacity-80">
+                  {unusedBenefits.length} förmån
+                  {unusedBenefits.length === 1 ? "" : "er"} är ännu inte
+                  markerad{unusedBenefits.length === 1 ? "" : "e"} som använda.
+                </p>
+              )}
+
+              <div className="mt-4 border-t border-black/10 pt-4">
+                <button
+                  type="button"
+                  disabled={usedBenefits.length === 0}
+                  onClick={openInlineComparison}
+                  className="flex w-full items-center justify-between gap-3 rounded-2xl bg-emerald-800 px-4 py-3 text-left text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-emerald-900 hover:shadow-md disabled:cursor-not-allowed disabled:bg-white/70 disabled:text-slate-400 disabled:shadow-none"
+                >
+                  <span>{benefitCompareLabel}</span>
+                  <span aria-hidden="true">→</span>
+                </button>
+                <p className="mt-2 text-xs font-semibold leading-relaxed opacity-75">
+                  {usedBenefits.length === 0
+                    ? "Markera minst en förmån så kan Benefitly anpassa jämförelsen."
+                    : "Jämför din plan med billigare nivåer, mer specialiserade tjänster och möjliga överlapp."}
+                </p>
+              </div>
+            </aside>
+          </div>
+        </div>
+      )}
+
+      {openPanel === "comparison" && (
+        <div
+          ref={inlinePanelRef}
+          className="scroll-mt-24 overflow-hidden border-t border-emerald-100 bg-gradient-to-b from-white to-slate-50/70 px-5 py-4"
+        >
+          <div className="animate-[benefitlyPanelIn_260ms_cubic-bezier(0.22,1,0.36,1)]">
+            <InlineServiceComparisonPanel
+              subscription={subscription}
+              subscriptions={subscriptions}
+              tab={comparisonTab}
+              onTabChange={setComparisonTab}
+              onBack={() => setOpenPanel("benefits")}
+              onClose={() => setOpenPanel(null)}
+            />
           </div>
         </div>
       )}
@@ -4920,6 +5389,198 @@ function CompactSubscriptionRow({
         </div>
       )}
     </div>
+  );
+}
+
+
+function InlineServiceComparisonPanel({
+  subscription,
+  subscriptions,
+  tab,
+  onTabChange,
+  onBack,
+  onClose,
+}: {
+  subscription: Subscription;
+  subscriptions: Subscription[];
+  tab: "plans" | "alternatives" | "overlap";
+  onTabChange: (tab: "plans" | "alternatives" | "overlap") => void;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  const plans = getPlanReferencesForService(subscription);
+  const category = getBenefitlyCategory(
+    subscription.category,
+    subscription.name,
+  );
+  const alternatives = subscriptions.filter(
+    (item) =>
+      item.id !== subscription.id &&
+      getBenefitlyCategory(item.category, item.name) === category,
+  );
+  const relatedOverlaps = getOverlapInsights(subscriptions).filter(
+    (insight) =>
+      normalizeText(insight.title).includes(normalizeText(subscription.name)) ||
+      normalizeText(insight.text).includes(normalizeText(subscription.name)),
+  );
+
+  return (
+    <section aria-label={`Jämförelse för ${subscription.name}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1 text-xs font-black text-emerald-800 transition hover:text-emerald-950"
+          >
+            <span aria-hidden="true">←</span> Visa förmåner
+          </button>
+          <p className="mt-2 text-xs font-black uppercase tracking-wide text-emerald-700">
+            Jämför ditt värde
+          </p>
+          <h3 className="mt-1 truncate text-lg font-black text-slate-950 sm:text-xl">
+            {subscription.name}
+          </h3>
+          <p className="mt-1 text-xs font-semibold text-slate-500 sm:text-sm">
+            Din plan: {subscription.plan || "inte angiven"} · utgår från det du markerat som värdefullt
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Stäng jämförelsen"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-sm font-black text-slate-600 shadow-sm ring-1 ring-slate-200 transition hover:bg-slate-100"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div className="mt-4 flex gap-2 overflow-x-auto rounded-2xl bg-slate-100 p-1.5">
+        {(
+          [
+            ["plans", "Planer"],
+            ["alternatives", "Liknande tjänster"],
+            ["overlap", "Överlapp"],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onTabChange(value)}
+            className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-black transition ${
+              tab === value
+                ? "bg-white text-emerald-800 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 min-h-[180px]">
+        {tab === "plans" && (
+          plans.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {plans.map((plan) => {
+                const isCurrent =
+                  normalizeText(plan.planName) ===
+                  normalizeText(subscription.plan ?? "");
+
+                return (
+                  <div
+                    key={plan.planName}
+                    className={`rounded-3xl border p-4 ${
+                      isCurrent
+                        ? "border-emerald-300 bg-emerald-50"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="font-black">{plan.planName}</h4>
+                      {isCurrent && (
+                        <span className="rounded-full bg-emerald-700 px-2.5 py-1 text-[11px] font-black text-white">
+                          Din plan
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {plan.roughPriceLabel}
+                    </p>
+                    <ul className="mt-3 space-y-2 text-sm font-semibold text-slate-700">
+                      {plan.highlights.slice(0, 5).map((item) => (
+                        <li key={item}>✓ {item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <ComparisonPlaceholder
+              title="Planjämförelse är på väg"
+              text="Vyn fungerar nu, men detaljerade planer finns ännu inte för den här tjänsten."
+            />
+          )
+        )}
+
+        {tab === "alternatives" && (
+          alternatives.length > 0 ? (
+            <div className="space-y-3">
+              {alternatives.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center"
+                >
+                  <div>
+                    <p className="font-black">{item.name}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-500">
+                      {item.plan || "Plan ej angiven"} · används {item.usage.toLowerCase()}
+                    </p>
+                  </div>
+                  <div className="text-left sm:text-right">
+                    <p className="font-black">
+                      {formatCurrency(getMonthlyPrice(item))}/mån
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-slate-500">
+                      Liknande kategori, men innehållet kan skilja sig
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <ComparisonPlaceholder
+              title="Inga liknande tjänster inlagda ännu"
+              text="När du lägger till fler tjänster i samma kategori visas de här."
+            />
+          )
+        )}
+
+        {tab === "overlap" && (
+          relatedOverlaps.length > 0 ? (
+            <div className="space-y-3">
+              {relatedOverlaps.map((insight) => (
+                <div
+                  key={insight.title}
+                  className="rounded-3xl border border-amber-200 bg-amber-50 p-4"
+                >
+                  <p className="font-black text-amber-950">{insight.title}</p>
+                  <p className="mt-2 text-sm font-semibold text-amber-900">
+                    {insight.text}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <ComparisonPlaceholder
+              title="Inget tydligt överlapp hittat"
+              text="Benefitly hittar fler samband när fler tjänster och förmåner är inlagda."
+            />
+          )
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -5422,9 +6083,9 @@ function ComparisonPlaceholder({
   text: string;
 }) {
   return (
-    <div className="rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-      <p className="text-3xl">🔎</p>
-      <h3 className="mt-3 text-xl font-black">{title}</h3>
+    <div className="flex min-h-[160px] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+      <p className="text-2xl">🔎</p>
+      <h3 className="mt-2 text-lg font-black">{title}</h3>
       <p className="mx-auto mt-2 max-w-lg text-sm font-medium text-slate-600">
         {text}
       </p>
