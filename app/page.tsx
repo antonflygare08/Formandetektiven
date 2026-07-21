@@ -13,6 +13,8 @@ type Subscription = {
   billingPeriod?: BillingPeriod;
   usage: string;
   plan?: string;
+  serviceId?: string;
+  servicePlanId?: string;
   priceConfirmed?: boolean;
   benefits: string[];
 };
@@ -1246,6 +1248,8 @@ type SupabaseSubscriptionRow = {
   billing_period: string;
   usage: string;
   plan: string | null;
+  service_id: string | null;
+  service_plan_id: string | null;
   price_confirmed: boolean;
 };
 
@@ -1262,6 +1266,8 @@ function mapDbSubscription(row: SupabaseSubscriptionRow): Subscription {
     billingPeriod,
     usage: row.usage,
     plan,
+    serviceId: row.service_id ?? undefined,
+    servicePlanId: row.service_plan_id ?? undefined,
     priceConfirmed: row.price_confirmed,
     benefits: getBenefitsForSubscription(row.name, row.category, plan),
   };
@@ -1387,7 +1393,7 @@ export default function Home() {
           const { data, error } = await supabase
             .from("subscriptions")
             .select(
-              "id, name, category, price, billing_period, usage, plan, price_confirmed",
+              "id, name, category, price, billing_period, usage, plan, service_id, service_plan_id, price_confirmed",
             )
             .order("created_at", { ascending: false });
 
@@ -1873,7 +1879,7 @@ export default function Home() {
           status: "active",
         })
         .select(
-          "id, name, category, price, billing_period, usage, plan, price_confirmed",
+          "id, name, category, price, billing_period, usage, plan, service_id, service_plan_id, price_confirmed",
         )
         .single();
 
