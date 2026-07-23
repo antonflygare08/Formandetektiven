@@ -31,10 +31,12 @@ type CheckItem = {
 };
 
 type KnownService = {
+  id?: string;
   displayName: string;
   matchNames: string[];
   category: string;
   plans: string[];
+  planIds?: Record<string, string>;
   recommendedBillingPeriod?: BillingPeriod;
   note: string;
 };
@@ -1328,20 +1330,23 @@ export default function Home() {
     plan,
   });
 
+  // These module-level values are intentionally synchronized for the
+  // existing helper functions used throughout this single-page prototype.
+  // eslint-disable-next-line react-hooks/globals
   activeCurrency = currency;
+  // eslint-disable-next-line react-hooks/globals
   activeLocale = currencyLocales[currency];
+  // eslint-disable-next-line react-hooks/globals
   activePlanPriceRangeMap = planPriceRangeMap;
 
   useEffect(() => {
     const hour = new Date().getHours();
 
-    if (hour < 10) {
-      setGreeting("God morgon");
-    } else if (hour < 17) {
-      setGreeting("God eftermiddag");
-    } else {
-      setGreeting("God kväll");
-    }
+    // This one-time client-side update depends on the browser clock.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setGreeting(
+      hour < 10 ? "God morgon" : hour < 17 ? "God eftermiddag" : "God kväll",
+    );
   }, []);
 
   useEffect(() => {
@@ -1466,7 +1471,7 @@ export default function Home() {
 
       const { data: plans, error: plansError } = await supabase
         .from("service_plans")
-        .select("service_id, name")
+        .select("id, service_id, name")
         .order("name");
 
       if (plansError) {
@@ -1474,10 +1479,17 @@ export default function Home() {
       }
 
       const plansByServiceId = new Map<string, string[]>();
+      const planIdsByServiceId = new Map<string, Record<string, string>>();
 
       plans?.forEach((plan) => {
         const currentPlans = plansByServiceId.get(plan.service_id) ?? [];
         plansByServiceId.set(plan.service_id, [...currentPlans, plan.name]);
+
+        const currentPlanIds = planIdsByServiceId.get(plan.service_id) ?? {};
+        planIdsByServiceId.set(plan.service_id, {
+          ...currentPlanIds,
+          [normalizeText(plan.name)]: plan.id,
+        });
       });
 
       const serviceNameById = new Map<string, string>();
@@ -1487,6 +1499,7 @@ export default function Home() {
 
       const mappedServices: KnownService[] =
         services?.map((service) => ({
+          id: service.id,
           displayName: service.display_name,
           matchNames: service.match_names ?? [service.display_name],
           category: getBenefitlyCategory(
@@ -1494,6 +1507,7 @@ export default function Home() {
             service.display_name,
           ),
           plans: plansByServiceId.get(service.id) ?? [],
+          planIds: planIdsByServiceId.get(service.id) ?? {},
           recommendedBillingPeriod:
             service.recommended_billing_period === "yearly"
               ? "yearly"
@@ -1613,6 +1627,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    // Rebuild derived benefit text when catalog data changes.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSubscriptions((currentSubscriptions) =>
       currentSubscriptions.map((subscription) => ({
         ...subscription,
@@ -1762,6 +1778,11 @@ export default function Home() {
 
     const cleanedPlan = plan.trim();
     const normalizedCategory = getBenefitlyCategory(category, name);
+    const matchedService = findKnownService(name, catalogServices);
+    const selectedServiceId = matchedService?.id;
+    const selectedServicePlanId = cleanedPlan
+      ? matchedService?.planIds?.[normalizeText(cleanedPlan)]
+      : undefined;
     const draftForPriceCheck: Subscription = {
       id: editingId ?? "draft",
       name,
@@ -1770,6 +1791,8 @@ export default function Home() {
       billingPeriod,
       usage,
       plan: cleanedPlan,
+      serviceId: selectedServiceId,
+      servicePlanId: selectedServicePlanId,
       priceConfirmed: false,
       benefits: [],
     };
@@ -1796,6 +1819,8 @@ export default function Home() {
         billingPeriod,
         usage,
         plan: cleanedPlan,
+        serviceId: selectedServiceId,
+        servicePlanId: selectedServicePlanId,
         priceConfirmed: skipPlanPriceWarning,
         benefits: getBenefitsForSubscription(
           name,
@@ -1817,6 +1842,8 @@ export default function Home() {
             billing_period: billingPeriod,
             usage,
             plan: cleanedPlan || null,
+            service_id: selectedServiceId ?? null,
+            service_plan_id: selectedServicePlanId ?? null,
             price_confirmed: skipPlanPriceWarning,
             updated_at: new Date().toISOString(),
           })
@@ -1852,6 +1879,8 @@ export default function Home() {
       billingPeriod,
       usage,
       plan: cleanedPlan,
+      serviceId: selectedServiceId,
+      servicePlanId: selectedServicePlanId,
       priceConfirmed: skipPlanPriceWarning,
       benefits: getBenefitsForSubscription(
         name,
@@ -1874,6 +1903,8 @@ export default function Home() {
           billing_period: billingPeriod,
           usage,
           plan: cleanedPlan || null,
+          service_id: selectedServiceId ?? null,
+          service_plan_id: selectedServicePlanId ?? null,
           price_confirmed: skipPlanPriceWarning,
           source: "manual",
           status: "active",
@@ -1911,7 +1942,8 @@ export default function Home() {
   ) {
     event.preventDefault();
 
-    const submitter = event.nativeEvent.submitter as HTMLButtonElement | null;
+    const submitter = (event.nativeEvent as SubmitEvent)
+      .submitter as HTMLButtonElement | null;
     const shouldAddAnother = submitter?.value === "addAnother";
 
     await saveSubscriptionFromForm(shouldAddAnother);
@@ -2809,10 +2841,6 @@ function getPriceLimitsForCategory(category: string) {
     return makeLimit(800, 1500, "kommunikation");
   }
 
-  if (normalizedCategory === "Kommunikation") {
-    return makeLimit(800, 1500, "kommunikation");
-  }
-
   if (normalizedCategory === "Hem och boende") {
     return makeLimit(3000, 6000, "hem och boende");
   }
@@ -2821,24 +2849,8 @@ function getPriceLimitsForCategory(category: string) {
     return makeLimit(500, 1000, "ekonomi och försäkring");
   }
 
-  if (normalizedCategory === "Ekonomi och försäkring") {
-    return makeLimit(500, 1000, "ekonomi och försäkring");
-  }
-
-  if (normalizedCategory === "Ekonomi och försäkring") {
-    return makeLimit(2000, 4000, "ekonomi och försäkring");
-  }
-
   if (normalizedCategory === "Shopping och medlemskap") {
     return makeLimit(500, 1000, "shopping och medlemskap");
-  }
-
-  if (normalizedCategory === "Shopping och medlemskap") {
-    return makeLimit(500, 1000, "shopping och medlemskap");
-  }
-
-  if (normalizedCategory === "Shopping och medlemskap") {
-    return makeLimit(1000, 2000, "shopping och medlemskap");
   }
 
   return makeLimit(1000, 2000, "den här typen av tjänst");
@@ -3423,7 +3435,6 @@ function getValueAssessment(subscription: Subscription) {
 
   if (
     priceSanity &&
-    priceSanity.level !== "low" &&
     subscription.usage === "Sällan" &&
     getMonthlyPrice(subscription) >= 150
   ) {
@@ -4917,6 +4928,8 @@ function CompactSubscriptionRow({
 
     if (savedUsage) {
       try {
+        // Restore persisted selections when this subscription changes.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setBenefitUsage(JSON.parse(savedUsage) as Record<string, boolean>);
       } catch {
         setBenefitUsage({});
